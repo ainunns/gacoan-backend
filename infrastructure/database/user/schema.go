@@ -1,10 +1,10 @@
 package user
 
 import (
+	"fp-kpl/domain/identity"
+	"fp-kpl/domain/shared"
+	"fp-kpl/domain/user"
 	"github.com/google/uuid"
-	"kpl-base/domain/identity"
-	"kpl-base/domain/shared"
-	"kpl-base/domain/user"
 	"time"
 )
 

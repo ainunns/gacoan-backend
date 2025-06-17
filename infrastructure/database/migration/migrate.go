@@ -1,9 +1,9 @@
 package migration
 
 import (
+	"fp-kpl/infrastructure/database/refresh_token"
+	"fp-kpl/infrastructure/database/user"
 	"gorm.io/gorm"
-	"kpl-base/infrastructure/database/refresh_token"
-	"kpl-base/infrastructure/database/user"
 )
 
 func Migrate(db *gorm.DB) error {

@@ -1,10 +1,10 @@
 package refresh_token
 
 import (
+	"fp-kpl/domain/identity"
+	"fp-kpl/domain/refresh_token"
+	"fp-kpl/domain/shared"
 	"github.com/google/uuid"
-	"kpl-base/domain/identity"
-	"kpl-base/domain/refresh_token"
-	"kpl-base/domain/shared"
 	"time"
 )
 

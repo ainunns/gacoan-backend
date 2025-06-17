@@ -1,4 +1,4 @@
-module kpl-base
+module fp-kpl
 
 go 1.24
 
