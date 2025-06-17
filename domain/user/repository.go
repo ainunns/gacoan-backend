@@ -2,7 +2,7 @@ package user
 
 import (
 	"context"
-	"kpl-base/platform/pagination"
+	"fp-kpl/platform/pagination"
 )
 
 type (
