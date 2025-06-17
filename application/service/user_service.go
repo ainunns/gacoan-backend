@@ -3,7 +3,6 @@ package service
 import (
 	"context"
 	"errors"
-	"fmt"
 	"fp-kpl/application/request"
 	"fp-kpl/application/response"
 	"fp-kpl/domain/refresh_token"
@@ -228,7 +227,6 @@ func (s *userService) Delete(ctx context.Context, userID string) error {
 	}
 
 	err = s.userRepository.Delete(ctx, tx, retrievedUser.ID.String())
-	err = fmt.Errorf("test error")
 	if err != nil {
 		return user.ErrorDeleteUser
 	}
