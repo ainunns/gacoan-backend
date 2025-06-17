@@ -1,8 +1,8 @@
 package user
 
 import (
-	"kpl-base/domain/identity"
-	"kpl-base/domain/shared"
+	"fp-kpl/domain/identity"
+	"fp-kpl/domain/shared"
 )
 
 type User struct {
