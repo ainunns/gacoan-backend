@@ -3,10 +3,7 @@ package main
 import (
 	"fp-kpl/application/service"
 	"fp-kpl/command"
-	domain_user "fp-kpl/domain/user"
-	"fp-kpl/infrastructure/adapter/file_storage"
 	"fp-kpl/infrastructure/database/config"
-	infrastructure_refresh_token "fp-kpl/infrastructure/database/refresh_token"
 	"fp-kpl/infrastructure/database/transaction"
 	infrastructure_user "fp-kpl/infrastructure/database/user"
 	"fp-kpl/presentation/controller"
@@ -58,13 +55,8 @@ func main() {
 
 	transactionRepository := transaction.NewRepository(db)
 	userRepository := infrastructure_user.NewRepository(transactionRepository)
-	refreshTokenRepository := infrastructure_refresh_token.NewRepository(transactionRepository)
 
-	fileStorage := file_storage.NewLocalAdapter()
-
-	userDomainService := domain_user.NewService(fileStorage)
-
-	userService := service.NewUserService(userRepository, refreshTokenRepository, *userDomainService, jwtService, transactionRepository)
+	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
 
 	userController := controller.NewUserController(userService)
 
