@@ -1,8 +1,6 @@
 package service
 
 import (
-	"crypto/rand"
-	"encoding/base64"
 	"fmt"
 	"github.com/golang-jwt/jwt/v5"
 	"log"
@@ -13,7 +11,6 @@ import (
 type (
 	JWTService interface {
 		GenerateAccessToken(userID string, role string) string
-		GenerateRefreshToken() (string, time.Time)
 		ValidateToken(token string) (*jwt.Token, error)
 		GetUserIDByToken(token string) (string, error)
 	}
@@ -25,19 +22,17 @@ type (
 	}
 
 	jwtService struct {
-		secretKey         string
-		issuer            string
-		accessExpiration  time.Duration
-		refreshExpiration time.Duration
+		secretKey        string
+		issuer           string
+		accessExpiration time.Duration
 	}
 )
 
 func NewJWTService() JWTService {
 	return &jwtService{
-		secretKey:         getSecretKey(),
-		issuer:            getIssuer(),
-		accessExpiration:  getAccessExpiration(),
-		refreshExpiration: getRefreshExpiration(),
+		secretKey:        getSecretKey(),
+		issuer:           getIssuer(),
+		accessExpiration: getAccessExpiration(),
 	}
 }
 
@@ -59,20 +54,6 @@ func (j *jwtService) GenerateAccessToken(userID string, role string) string {
 	}
 
 	return tokenString
-}
-
-func (j *jwtService) GenerateRefreshToken() (string, time.Time) {
-	b := make([]byte, 32)
-	_, err := rand.Read(b)
-	if err != nil {
-		log.Println(err)
-		return "", time.Time{}
-	}
-
-	refreshToken := base64.StdEncoding.EncodeToString(b)
-	expiresAt := time.Now().Add(j.refreshExpiration)
-
-	return refreshToken, expiresAt
 }
 
 func (j *jwtService) ValidateToken(token string) (*jwt.Token, error) {
@@ -125,18 +106,6 @@ func getAccessExpiration() time.Duration {
 	duration, err := time.ParseDuration(expiration)
 	if err != nil {
 		duration = 15 * time.Minute
-	}
-	return duration
-}
-
-func getRefreshExpiration() time.Duration {
-	expiration := os.Getenv("JWT_REFRESH_EXPIRATION")
-	if expiration == "" {
-		expiration = "7d"
-	}
-	duration, err := time.ParseDuration(expiration)
-	if err != nil {
-		duration = 7 * 24 * time.Hour
 	}
 	return duration
 }
