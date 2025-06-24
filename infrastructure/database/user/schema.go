@@ -32,13 +32,11 @@ func EntityToSchema(entity user.User) User {
 	}
 	return User{
 		ID:          entity.ID.ID,
-		Name:        entity.Name,
 		Email:       entity.Email,
-		PhoneNumber: entity.PhoneNumber,
 		Password:    entity.Password.Password,
+		Name:        entity.Name,
+		PhoneNumber: entity.PhoneNumber,
 		Role:        entity.Role.Name,
-		ImageUrl:    entity.ImageUrl.Path,
-		IsVerified:  entity.IsVerified,
 		CreatedAt:   entity.Timestamp.CreatedAt,
 		UpdatedAt:   entity.Timestamp.UpdatedAt,
 		DeletedAt: gorm.DeletedAt{
@@ -51,13 +49,11 @@ func EntityToSchema(entity user.User) User {
 func SchemaToEntity(schema User) user.User {
 	return user.User{
 		ID:          identity.NewIDFromSchema(schema.ID),
-		Name:        schema.Name,
 		Email:       schema.Email,
-		PhoneNumber: schema.PhoneNumber,
 		Password:    user.NewPasswordFromSchema(schema.Password),
+		Name:        schema.Name,
+		PhoneNumber: schema.PhoneNumber,
 		Role:        user.NewRoleFromSchema(schema.Role),
-		ImageUrl:    shared.NewURLFromSchema(schema.ImageUrl),
-		IsVerified:  schema.IsVerified,
 		Timestamp: shared.Timestamp{
 			CreatedAt: schema.CreatedAt,
 			UpdatedAt: schema.UpdatedAt,
