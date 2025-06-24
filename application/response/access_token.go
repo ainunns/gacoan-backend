@@ -1,5 +1,5 @@
 package response
 
-type RefreshToken struct {
+type AccessToken struct {
 	AccessToken string `json:"access_token"`
 }
