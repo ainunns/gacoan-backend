@@ -15,7 +15,7 @@ type (
 		Register(ctx context.Context, req request.UserRegister) (response.UserRegister, error)
 		GetUserByID(ctx context.Context, userID string) (response.User, error)
 		GetUserByEmail(ctx context.Context, email string) (response.User, error)
-		Verify(ctx context.Context, req request.UserLogin) (response.RefreshToken, error)
+		Verify(ctx context.Context, req request.UserLogin) (response.AccessToken, error)
 	}
 
 	userService struct {
@@ -108,15 +108,15 @@ func (s *userService) GetUserByEmail(ctx context.Context, email string) (respons
 	}, nil
 }
 
-func (s *userService) Verify(ctx context.Context, req request.UserLogin) (response.RefreshToken, error) {
+func (s *userService) Verify(ctx context.Context, req request.UserLogin) (response.AccessToken, error) {
 	validatedTransaction, err := validation.ValidateTransaction(s.transaction)
 	if err != nil {
-		return response.RefreshToken{}, err
+		return response.AccessToken{}, err
 	}
 
 	tx, err := validatedTransaction.Begin(ctx)
 	if err != nil {
-		return response.RefreshToken{}, err
+		return response.AccessToken{}, err
 	}
 
 	defer func() {
@@ -128,17 +128,17 @@ func (s *userService) Verify(ctx context.Context, req request.UserLogin) (respon
 
 	retrievedUser, err := s.userRepository.GetUserByEmail(ctx, tx, req.Email)
 	if err != nil {
-		return response.RefreshToken{}, user.ErrorEmailNotFound
+		return response.AccessToken{}, user.ErrorEmailNotFound
 	}
 
 	checkPassword, err := retrievedUser.Password.IsPasswordMatch([]byte(req.Password))
 	if err != nil || !checkPassword {
-		return response.RefreshToken{}, err
+		return response.AccessToken{}, err
 	}
 
 	accessToken := s.jwtService.GenerateAccessToken(retrievedUser.ID.String(), retrievedUser.Role.Name)
 
-	return response.RefreshToken{
+	return response.AccessToken{
 		AccessToken: accessToken,
 	}, nil
 }
