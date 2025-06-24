@@ -1,7 +1,7 @@
 package command
 
 import (
-	"kpl-base/infrastructure/database/migration"
+	"fp-kpl/infrastructure/database/migration"
 	"log"
 	"os"
 

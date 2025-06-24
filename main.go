@@ -1,19 +1,16 @@
 package main
 
 import (
+	"fp-kpl/application/service"
+	"fp-kpl/command"
+	"fp-kpl/infrastructure/database/config"
+	"fp-kpl/infrastructure/database/transaction"
+	infrastructure_user "fp-kpl/infrastructure/database/user"
+	"fp-kpl/presentation/controller"
+	"fp-kpl/presentation/middleware"
+	"fp-kpl/presentation/route"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
-	"kpl-base/application/service"
-	"kpl-base/command"
-	domain_user "kpl-base/domain/user"
-	"kpl-base/infrastructure/adapter/file_storage"
-	"kpl-base/infrastructure/database/config"
-	infrastructure_refresh_token "kpl-base/infrastructure/database/refresh_token"
-	"kpl-base/infrastructure/database/transaction"
-	infrastructure_user "kpl-base/infrastructure/database/user"
-	"kpl-base/presentation/controller"
-	"kpl-base/presentation/middleware"
-	"kpl-base/presentation/route"
 	"log"
 	"os"
 )
@@ -58,13 +55,8 @@ func main() {
 
 	transactionRepository := transaction.NewRepository(db)
 	userRepository := infrastructure_user.NewRepository(transactionRepository)
-	refreshTokenRepository := infrastructure_refresh_token.NewRepository(transactionRepository)
 
-	fileStorage := file_storage.NewLocalAdapter()
-
-	userDomainService := domain_user.NewService(fileStorage)
-
-	userService := service.NewUserService(userRepository, refreshTokenRepository, *userDomainService, jwtService, transactionRepository)
+	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
 
 	userController := controller.NewUserController(userService)
 

@@ -3,14 +3,18 @@ package user
 import "fmt"
 
 const (
-	RoleAdmin = "admin"
-	RoleUser  = "user"
+	RoleSuperAdmin = "superadmin"
+	RoleCustomer   = "customer"
+	RoleKitchen    = "kitchen"
+	RoleWaiter     = "waiter"
 )
 
 var (
 	Roles = []Role{
-		{RoleAdmin},
-		{RoleUser},
+		{RoleSuperAdmin},
+		{RoleCustomer},
+		{RoleKitchen},
+		{RoleWaiter},
 	}
 )
 

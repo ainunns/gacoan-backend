@@ -1,10 +1,10 @@
 package middleware
 
 import (
+	"fp-kpl/application/service"
+	"fp-kpl/presentation"
+	"fp-kpl/presentation/message"
 	"github.com/gin-gonic/gin"
-	"kpl-base/application/service"
-	"kpl-base/presentation"
-	"kpl-base/presentation/message"
 	"net/http"
 	"strings"
 )
