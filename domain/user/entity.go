@@ -7,12 +7,10 @@ import (
 
 type User struct {
 	ID          identity.ID
-	Name        string
 	Email       string
-	PhoneNumber string
 	Password    Password
+	Name        string
+	PhoneNumber string
 	Role        Role
-	ImageUrl    shared.URL
-	IsVerified  bool
 	shared.Timestamp
 }
