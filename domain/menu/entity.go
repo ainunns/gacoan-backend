@@ -10,7 +10,7 @@ type Menu struct {
 	ID          identity.ID
 	CategoryID  identity.ID
 	Name        string
-	ImgUrl      string
+	ImageURL    shared.URL
 	Price       shared.Price
 	IsAvailable bool
 	CookingTime time.Time
