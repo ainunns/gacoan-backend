@@ -4,15 +4,17 @@ import (
 	"fp-kpl/application/service"
 	"fp-kpl/command"
 	"fp-kpl/infrastructure/database/config"
+	infrastructure_table "fp-kpl/infrastructure/database/table"
 	"fp-kpl/infrastructure/database/transaction"
 	infrastructure_user "fp-kpl/infrastructure/database/user"
 	"fp-kpl/presentation/controller"
 	"fp-kpl/presentation/middleware"
 	"fp-kpl/presentation/route"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"log"
 	"os"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func args(db *gorm.DB) bool {
@@ -55,10 +57,13 @@ func main() {
 
 	transactionRepository := transaction.NewRepository(db)
 	userRepository := infrastructure_user.NewRepository(transactionRepository)
+	tableRepository := infrastructure_table.NewRepository(transactionRepository)
 
 	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
+	tableService := service.NewTableService(tableRepository)
 
 	userController := controller.NewUserController(userService)
+	tableController := controller.NewTableController(tableService)
 
 	defer config.CloseDatabaseConnection(db)
 
@@ -70,6 +75,7 @@ func main() {
 	server.Use(middleware.CORSMiddleware())
 
 	route.UserRoute(server, userController, jwtService)
+	route.TableRoute(server, tableController, jwtService)
 
 	run(server)
 }
