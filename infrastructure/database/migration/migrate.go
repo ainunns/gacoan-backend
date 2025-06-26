@@ -1,13 +1,16 @@
 package migration
 
 import (
+	"fp-kpl/infrastructure/database/table"
 	"fp-kpl/infrastructure/database/user"
+
 	"gorm.io/gorm"
 )
 
 func Migrate(db *gorm.DB) error {
 	if err := db.AutoMigrate(
 		&user.User{},
+		&table.Table{},
 	); err != nil {
 		return err
 	}
