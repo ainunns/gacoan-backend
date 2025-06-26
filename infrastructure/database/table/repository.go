@@ -15,7 +15,7 @@ func NewRepository(db *transaction.Repository) table.Repository {
 	return &repository{db: db}
 }
 
-func (r *repository) GetAllTable(ctx context.Context, tx interface{}) ([]table.Table, error) {
+func (r *repository) GetAllTables(ctx context.Context, tx interface{}) ([]table.Table, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
 		return nil, err
