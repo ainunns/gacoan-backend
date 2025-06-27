@@ -5,8 +5,7 @@ import (
 	"fp-kpl/command"
 	"fp-kpl/infrastructure/database/config"
 	"fp-kpl/infrastructure/database/db_transaction"
-	infrastructure_table "fp-kpl/infrastructure/database/table"
-	infrastructure_user "fp-kpl/infrastructure/database/user"
+	"fp-kpl/infrastructure/database/repository"
 	"fp-kpl/presentation/controller"
 	"fp-kpl/presentation/middleware"
 	"fp-kpl/presentation/route"
@@ -53,10 +52,10 @@ func main() {
 	db := config.SetUpDatabaseConnection()
 
 	jwtService := service.NewJWTService()
-
 	transactionRepository := db_transaction.NewRepository(db)
-	userRepository := infrastructure_user.NewRepository(transactionRepository)
-	tableRepository := infrastructure_table.NewRepository(transactionRepository)
+
+	userRepository := repository.NewUserRepository(transactionRepository)
+	tableRepository := repository.NewTableRepository(transactionRepository)
 
 	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
 	tableService := service.NewTableService(tableRepository)
