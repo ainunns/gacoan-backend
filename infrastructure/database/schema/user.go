@@ -1,4 +1,4 @@
-package user
+package schema
 
 import (
 	"fp-kpl/domain/identity"
@@ -23,7 +23,7 @@ type User struct {
 	DeletedAt   gorm.DeletedAt `gorm:"type:timestamp with time zone;column:deleted_at"`
 }
 
-func EntityToSchema(entity user.User) User {
+func UserEntityToSchema(entity user.User) User {
 	var deletedAtTime time.Time
 	if entity.DeletedAt != nil {
 		deletedAtTime = *entity.DeletedAt
@@ -46,7 +46,7 @@ func EntityToSchema(entity user.User) User {
 	}
 }
 
-func SchemaToEntity(schema User) user.User {
+func UserSchemaToEntity(schema User) user.User {
 	return user.User{
 		ID:          identity.NewIDFromSchema(schema.ID),
 		Email:       schema.Email,

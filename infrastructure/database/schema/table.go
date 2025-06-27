@@ -1,4 +1,4 @@
-package table
+package schema
 
 import (
 	"fp-kpl/domain/identity"
@@ -18,7 +18,7 @@ type Table struct {
 	DeletedAt   gorm.DeletedAt `gorm:"type:timestamp with time zone;column:deleted_at"`
 }
 
-func EntityToSchema(entity table.Table) Table {
+func TableEntityToSchema(entity table.Table) Table {
 	var deletedAtTime time.Time
 	if entity.DeletedAt != nil {
 		deletedAtTime = *entity.DeletedAt
@@ -37,7 +37,7 @@ func EntityToSchema(entity table.Table) Table {
 	}
 }
 
-func SchemaToEntity(schema Table) table.Table {
+func TableSchemaToEntity(schema Table) table.Table {
 	return table.Table{
 		ID:          identity.NewIDFromSchema(schema.ID),
 		TableNumber: schema.TableNumber,

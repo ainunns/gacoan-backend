@@ -1,21 +1,22 @@
-package table
+package repository
 
 import (
 	"context"
 	"fp-kpl/domain/table"
 	"fp-kpl/infrastructure/database/db_transaction"
+	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/infrastructure/database/validation"
 )
 
-type repository struct {
+type tableRepository struct {
 	db *db_transaction.Repository
 }
 
-func NewRepository(db *db_transaction.Repository) table.Repository {
-	return &repository{db: db}
+func NewTableRepository(db *db_transaction.Repository) table.Repository {
+	return &tableRepository{db: db}
 }
 
-func (r *repository) GetAllTables(ctx context.Context, tx interface{}) ([]table.Table, error) {
+func (r *tableRepository) GetAllTables(ctx context.Context, tx interface{}) ([]table.Table, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
 		return nil, err
@@ -26,22 +27,22 @@ func (r *repository) GetAllTables(ctx context.Context, tx interface{}) ([]table.
 		db = r.db.DB()
 	}
 
-	var tableSchemas []Table
+	var tableSchemas []schema.Table
 
-	query := db.WithContext(ctx).Model(&Table{})
+	query := db.WithContext(ctx).Model(&schema.Table{})
 	if err = query.Find(&tableSchemas).Error; err != nil {
 		return nil, err
 	}
 
 	tableEntities := make([]table.Table, len(tableSchemas))
 	for i, tableSchema := range tableSchemas {
-		tableEntities[i] = SchemaToEntity(tableSchema)
+		tableEntities[i] = schema.TableSchemaToEntity(tableSchema)
 	}
 
 	return tableEntities, nil
 }
 
-func (r *repository) GetTableByID(ctx context.Context, tx interface{}, id string) (table.Table, error) {
+func (r *tableRepository) GetTableByID(ctx context.Context, tx interface{}, id string) (table.Table, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
 		return table.Table{}, err
@@ -52,12 +53,12 @@ func (r *repository) GetTableByID(ctx context.Context, tx interface{}, id string
 		db = r.db.DB()
 	}
 
-	var tableSchema Table
+	var tableSchema schema.Table
 
 	if err = db.WithContext(ctx).Where("id = ?", id).Take(&tableSchema).Error; err != nil {
 		return table.Table{}, err
 	}
 
-	tableEntity := SchemaToEntity(tableSchema)
+	tableEntity := schema.TableSchemaToEntity(tableSchema)
 	return tableEntity, nil
 }

@@ -2,15 +2,14 @@ package seed
 
 import (
 	"fp-kpl/infrastructure/database/migration/data"
-	"fp-kpl/infrastructure/database/table"
-
+	"fp-kpl/infrastructure/database/schema"
 	"gorm.io/gorm"
 )
 
 func Table(db *gorm.DB) error {
-	hasTable := db.Migrator().HasTable(&table.Table{})
+	hasTable := db.Migrator().HasTable(&schema.Table{})
 	if !hasTable {
-		return db.AutoMigrate(&table.Table{})
+		return db.AutoMigrate(&schema.Table{})
 	}
 
 	return db.CreateInBatches(data.Tables, 100).Error
