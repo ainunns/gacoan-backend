@@ -1,8 +1,10 @@
 package data
 
-import "fp-kpl/infrastructure/database/table"
+import (
+	"fp-kpl/infrastructure/database/schema"
+)
 
-var Tables = []table.Table{
+var Tables = []schema.Table{
 	{
 		TableNumber: "01",
 	},
