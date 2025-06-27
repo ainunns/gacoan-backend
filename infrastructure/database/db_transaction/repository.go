@@ -1,4 +1,4 @@
-package transaction
+package db_transaction
 
 import (
 	"context"

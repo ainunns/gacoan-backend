@@ -3,15 +3,15 @@ package user
 import (
 	"context"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/transaction"
+	"fp-kpl/infrastructure/database/db_transaction"
 	"fp-kpl/infrastructure/database/validation"
 )
 
 type repository struct {
-	db *transaction.Repository
+	db *db_transaction.Repository
 }
 
-func NewRepository(db *transaction.Repository) user.Repository {
+func NewRepository(db *db_transaction.Repository) user.Repository {
 	return &repository{db: db}
 }
 
