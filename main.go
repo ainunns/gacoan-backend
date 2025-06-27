@@ -4,17 +4,16 @@ import (
 	"fp-kpl/application/service"
 	"fp-kpl/command"
 	"fp-kpl/infrastructure/database/config"
+	"fp-kpl/infrastructure/database/db_transaction"
 	infrastructure_table "fp-kpl/infrastructure/database/table"
-	"fp-kpl/infrastructure/database/transaction"
 	infrastructure_user "fp-kpl/infrastructure/database/user"
 	"fp-kpl/presentation/controller"
 	"fp-kpl/presentation/middleware"
 	"fp-kpl/presentation/route"
-	"log"
-	"os"
-
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
+	"log"
+	"os"
 )
 
 func args(db *gorm.DB) bool {
@@ -55,7 +54,7 @@ func main() {
 
 	jwtService := service.NewJWTService()
 
-	transactionRepository := transaction.NewRepository(db)
+	transactionRepository := db_transaction.NewRepository(db)
 	userRepository := infrastructure_user.NewRepository(transactionRepository)
 	tableRepository := infrastructure_table.NewRepository(transactionRepository)
 
