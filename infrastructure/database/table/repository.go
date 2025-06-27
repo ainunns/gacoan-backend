@@ -3,15 +3,15 @@ package table
 import (
 	"context"
 	"fp-kpl/domain/table"
-	"fp-kpl/infrastructure/database/transaction"
+	"fp-kpl/infrastructure/database/db_transaction"
 	"fp-kpl/infrastructure/database/validation"
 )
 
 type repository struct {
-	db *transaction.Repository
+	db *db_transaction.Repository
 }
 
-func NewRepository(db *transaction.Repository) table.Repository {
+func NewRepository(db *db_transaction.Repository) table.Repository {
 	return &repository{db: db}
 }
 
