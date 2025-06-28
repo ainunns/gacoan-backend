@@ -16,6 +16,8 @@ type Category struct {
 	CreatedAt time.Time      `gorm:"type:timestamp with time zone;column:created_at"`
 	UpdatedAt time.Time      `gorm:"type:timestamp with time zone;column:updated_at"`
 	DeletedAt gorm.DeletedAt `gorm:"type:timestamp with time zone;column:deleted_at"`
+
+	Menus []Menu `gorm:"foreignKey:CategoryID"`
 }
 
 func CategoryEntityToSchema(entity category.Category) Category {

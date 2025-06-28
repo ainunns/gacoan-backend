@@ -11,6 +11,7 @@ func Migrate(db *gorm.DB) error {
 		&schema.User{},
 		&schema.Table{},
 		&schema.Category{},
+		&schema.Menu{},
 	); err != nil {
 		return err
 	}
