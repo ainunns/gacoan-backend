@@ -42,6 +42,8 @@ func (s *menuService) GetAllMenus(ctx context.Context) ([]response.Menu, error) 
 			ID:          menu.ID.String(),
 			Name:        menu.Name,
 			Description: menu.Description,
+			ImageUrl:    menu.ImageURL.Path,
+			IsAvailable: menu.IsAvailable,
 			Price:       menu.Price.Price,
 			Category: response.Category{
 				ID:   categoryDetail.ID.String(),
@@ -68,6 +70,8 @@ func (s *menuService) GetMenuByID(ctx context.Context, id string) (response.Menu
 		ID:          retrievedMenu.ID.String(),
 		Name:        retrievedMenu.Name,
 		Description: retrievedMenu.Description,
+		ImageUrl:    retrievedMenu.ImageURL.Path,
+		IsAvailable: retrievedMenu.IsAvailable,
 		Price:       retrievedMenu.Price.Price,
 		Category: response.Category{
 			ID:   categoryDetail.ID.String(),
@@ -96,6 +100,8 @@ func (s *menuService) GetMenusByCategoryID(ctx context.Context, categoryID strin
 			ID:          menu.ID.String(),
 			Name:        menu.Name,
 			Description: menu.Description,
+			ImageUrl:    menu.ImageURL.Path,
+			IsAvailable: menu.IsAvailable,
 			Price:       menu.Price.Price,
 			Category: response.Category{
 				ID:   categoryDetail.ID.String(),
