@@ -12,7 +12,7 @@ import (
 )
 
 type Menu struct {
-	ID          uuid.UUID       `gorm:"type:uuid;primary_key;default:uuid_generate_v4();column:id"`
+	ID          uuid.UUID       `gorm:"type:uuid;primaryKey;default:uuid_generate_v4();column:id"`
 	CategoryID  uuid.UUID       `gorm:"type:uuid;not null;column:category_id"`
 	Name        string          `gorm:"type:varchar(255);not null;column:name"`
 	ImageURL    string          `gorm:"type:varchar(255);not null;column:image_url"`

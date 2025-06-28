@@ -11,7 +11,7 @@ import (
 )
 
 type Category struct {
-	ID        uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4();column:id"`
+	ID        uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4();column:id"`
 	Name      string         `gorm:"type:varchar(255);unique;not null;column:name"`
 	CreatedAt time.Time      `gorm:"type:timestamp with time zone;column:created_at"`
 	UpdatedAt time.Time      `gorm:"type:timestamp with time zone;column:updated_at"`
