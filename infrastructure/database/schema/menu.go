@@ -55,13 +55,6 @@ func MenuEntityToSchema(entity menu.Menu) Menu {
 }
 
 func MenuSchemaToEntity(schema Menu) menu.Menu {
-	var deletedAtTime time.Time
-	if schema.DeletedAt.Valid {
-		deletedAtTime = schema.DeletedAt.Time
-	} else {
-		deletedAtTime = time.Time{}
-	}
-
 	return menu.Menu{
 		ID:          identity.NewIDFromSchema(schema.ID),
 		CategoryID:  identity.NewIDFromSchema(schema.CategoryID),
@@ -74,7 +67,7 @@ func MenuSchemaToEntity(schema Menu) menu.Menu {
 		Timestamp: shared.Timestamp{
 			CreatedAt: schema.CreatedAt,
 			UpdatedAt: schema.UpdatedAt,
-			DeletedAt: &deletedAtTime,
+			DeletedAt: &schema.DeletedAt.Time,
 		},
 	}
 }
