@@ -18,7 +18,7 @@ type Menu struct {
 	ImageURL    string          `gorm:"type:varchar(255);not null;column:image_url"`
 	Price       decimal.Decimal `gorm:"type:decimal(10,2);not null;column:price"`
 	IsAvailable bool            `gorm:"type:boolean;not null;column:is_available"`
-	CookingTime time.Time       `gorm:"type:timestamp with time zone;not null;column:cooking_time"`
+	CookingTime time.Duration   `gorm:"type:interval;not null;column:cooking_time"`
 	Description string          `gorm:"type:text;not null;column:description"`
 	CreatedAt   time.Time       `gorm:"type:timestamp with time zone;not null;column:created_at"`
 	UpdatedAt   time.Time       `gorm:"type:timestamp with time zone;not null;column:updated_at"`

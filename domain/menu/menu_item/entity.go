@@ -13,7 +13,7 @@ type Menu struct {
 	ImageURL    shared.URL
 	Price       shared.Price
 	IsAvailable bool
-	CookingTime time.Time
+	CookingTime time.Duration
 	Description string
 	shared.Timestamp
 }
