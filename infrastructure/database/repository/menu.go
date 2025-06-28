@@ -63,7 +63,7 @@ func (r *menuRepository) GetMenuByID(ctx context.Context, tx interface{}, id str
 	return menuEntity, nil
 }
 
-func (r *menuRepository) GetMenuByCategoryID(ctx context.Context, tx interface{}, categoryID string) ([]menu.Menu, error) {
+func (r *menuRepository) GetMenusByCategoryID(ctx context.Context, tx interface{}, categoryID string) ([]menu.Menu, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
 		return nil, err
