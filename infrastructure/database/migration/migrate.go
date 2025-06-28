@@ -2,6 +2,7 @@ package migration
 
 import (
 	"fp-kpl/infrastructure/database/schema"
+
 	"gorm.io/gorm"
 )
 
