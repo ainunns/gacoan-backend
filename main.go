@@ -58,14 +58,17 @@ func main() {
 	userRepository := repository.NewUserRepository(transactionRepository)
 	tableRepository := repository.NewTableRepository(transactionRepository)
 	categoryRepository := repository.NewCategoryRepository(transactionRepository)
+	menuRepository := repository.NewMenuRepository(transactionRepository)
 
 	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
 	tableService := service.NewTableService(tableRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
+	menuService := service.NewMenuService(menuRepository, categoryRepository)
 
 	userController := controller.NewUserController(userService)
 	tableController := controller.NewTableController(tableService)
 	categoryController := controller.NewCategoryController(categoryService)
+	menuController := controller.NewMenuController(menuService)
 
 	defer config.CloseDatabaseConnection(db)
 
@@ -79,6 +82,7 @@ func main() {
 	route.UserRoute(server, userController, jwtService)
 	route.TableRoute(server, tableController, jwtService)
 	route.CategoryRoute(server, categoryController, jwtService)
+	route.MenuRoute(server, menuController, jwtService)
 
 	run(server)
 }
