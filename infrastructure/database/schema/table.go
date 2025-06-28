@@ -11,11 +11,13 @@ import (
 )
 
 type Table struct {
-	ID          uuid.UUID      `gorm:"type:uuid;primary_key;default:uuid_generate_v4();column:id"`
+	ID          uuid.UUID      `gorm:"type:uuid;primaryKey;default:uuid_generate_v4();column:id"`
 	TableNumber string         `gorm:"type:varchar(255);unique;not null;column:table_number"`
 	CreatedAt   time.Time      `gorm:"type:timestamp with time zone;column:created_at"`
 	UpdatedAt   time.Time      `gorm:"type:timestamp with time zone;column:updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"type:timestamp with time zone;column:deleted_at"`
+
+	Transactions []Transaction `gorm:"foreignKey:TableID"`
 }
 
 func TableEntityToSchema(entity table.Table) Table {

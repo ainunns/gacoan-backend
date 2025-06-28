@@ -37,6 +37,13 @@ func NewPayment(code, status string) (Payment, error) {
 	}, nil
 }
 
+func NewPaymentFromSchema(code, status string) Payment {
+	return Payment{
+		Code:   code,
+		Status: status,
+	}
+}
+
 func isValidPaymentStatus(status string) bool {
 	for _, paymentStatus := range PaymentStatuses {
 		if paymentStatus == status {
