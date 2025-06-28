@@ -17,6 +17,10 @@ func NewPrice(price decimal.Decimal) (Price, error) {
 	return Price{Price: price}, nil
 }
 
+func NewPriceFromSchema(price decimal.Decimal) Price {
+	return Price{Price: price}
+}
+
 func isValidPrice(price decimal.Decimal) bool {
 	return price.GreaterThanOrEqual(decimal.Zero)
 }
