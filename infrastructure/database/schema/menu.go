@@ -25,6 +25,7 @@ type Menu struct {
 	DeletedAt   gorm.DeletedAt  `gorm:"type:timestamp with time zone;column:deleted_at"`
 
 	Category *Category `gorm:"foreignKey:CategoryID"`
+	Orders   []Order   `gorm:"foreignKey:MenuID"`
 }
 
 func MenuEntityToSchema(entity menu.Menu) Menu {
