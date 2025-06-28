@@ -14,11 +14,11 @@ type (
 		GetAllTables(ctx context.Context) ([]response.Table, error)
 		GetTableByID(ctx context.Context, id string) (response.Table, error)
 	}
-)
 
-type tableService struct {
-	tableRepository table.Repository
-}
+	tableService struct {
+		tableRepository table.Repository
+	}
+)
 
 func NewTableService(tableRepository table.Repository) TableService {
 	return &tableService{tableRepository: tableRepository}
