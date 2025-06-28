@@ -13,6 +13,7 @@ import (
 
 type Menu struct {
 	ID          uuid.UUID       `gorm:"type:uuid;primary_key;default:uuid_generate_v4();column:id"`
+	CategoryID  uuid.UUID       `gorm:"type:uuid;not null;column:category_id"`
 	Name        string          `gorm:"type:varchar(255);not null;column:name"`
 	ImageURL    string          `gorm:"type:varchar(255);not null;column:image_url"`
 	Price       decimal.Decimal `gorm:"type:decimal(10,2);not null;column:price"`
@@ -23,7 +24,7 @@ type Menu struct {
 	UpdatedAt   time.Time       `gorm:"type:timestamp with time zone;not null;column:updated_at"`
 	DeletedAt   gorm.DeletedAt  `gorm:"type:timestamp with time zone;column:deleted_at"`
 
-	CategoryID uuid.UUID `gorm:"type:uuid;not null;column:category_id"`
+	Category *Category `gorm:"foreignKey:CategoryID"`
 }
 
 func MenuEntityToSchema(entity menu.Menu) Menu {
@@ -44,8 +45,11 @@ func MenuEntityToSchema(entity menu.Menu) Menu {
 		Description: entity.Description,
 		CreatedAt:   entity.Timestamp.CreatedAt,
 		UpdatedAt:   entity.Timestamp.UpdatedAt,
-		DeletedAt:   gorm.DeletedAt{Time: deletedAtTime},
-		CategoryID:  entity.CategoryID.ID,
+		DeletedAt: gorm.DeletedAt{
+			Time:  deletedAtTime,
+			Valid: entity.DeletedAt != nil,
+		},
+		CategoryID: entity.CategoryID.ID,
 	}
 }
 
