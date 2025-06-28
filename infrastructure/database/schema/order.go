@@ -46,13 +46,6 @@ func OrderEntityToSchema(entity order.Order) Order {
 }
 
 func OrderSchemaToEntity(schema Order) order.Order {
-	var deletedAtTime time.Time
-	if schema.DeletedAt.Valid {
-		deletedAtTime = schema.DeletedAt.Time
-	} else {
-		deletedAtTime = time.Time{}
-	}
-
 	return order.Order{
 		ID:            identity.NewIDFromSchema(schema.ID),
 		TransactionID: identity.NewIDFromSchema(schema.TransactionID),
@@ -61,7 +54,7 @@ func OrderSchemaToEntity(schema Order) order.Order {
 		Timestamp: shared.Timestamp{
 			CreatedAt: schema.CreatedAt,
 			UpdatedAt: schema.UpdatedAt,
-			DeletedAt: &deletedAtTime,
+			DeletedAt: &schema.DeletedAt.Time,
 		},
 	}
 }
