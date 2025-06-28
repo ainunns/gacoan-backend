@@ -29,7 +29,10 @@ func (r *menuRepository) GetAllMenus(ctx context.Context, tx interface{}) ([]men
 
 	var menuSchemas []schema.Menu
 
-	query := db.WithContext(ctx).Model(&schema.Menu{})
+	query := db.WithContext(ctx).Model(&schema.Menu{}).
+		Joins("JOIN categories ON menus.category_id = categories.id").
+		Order("categories.name ASC, menus.name ASC")
+
 	if err = query.Find(&menuSchemas).Error; err != nil {
 		return nil, err
 	}
@@ -76,7 +79,12 @@ func (r *menuRepository) GetMenusByCategoryID(ctx context.Context, tx interface{
 
 	var menuSchemas []schema.Menu
 
-	if err = db.WithContext(ctx).Where("category_id = ?", categoryID).Find(&menuSchemas).Error; err != nil {
+	query := db.WithContext(ctx).Model(&schema.Menu{}).
+		Joins("JOIN categories ON menus.category_id = categories.id").
+		Where("menus.category_id = ?", categoryID).
+		Order("categories.name ASC, menus.name ASC")
+
+	if err = query.Find(&menuSchemas).Error; err != nil {
 		return nil, err
 	}
 
