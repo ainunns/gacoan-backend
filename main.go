@@ -9,10 +9,11 @@ import (
 	"fp-kpl/presentation/controller"
 	"fp-kpl/presentation/middleware"
 	"fp-kpl/presentation/route"
-	"github.com/gin-gonic/gin"
-	"gorm.io/gorm"
 	"log"
 	"os"
+
+	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 func args(db *gorm.DB) bool {
@@ -56,12 +57,15 @@ func main() {
 
 	userRepository := repository.NewUserRepository(transactionRepository)
 	tableRepository := repository.NewTableRepository(transactionRepository)
+	categoryRepository := repository.NewCategoryRepository(transactionRepository)
 
 	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
 	tableService := service.NewTableService(tableRepository)
+	categoryService := service.NewCategoryService(categoryRepository)
 
 	userController := controller.NewUserController(userService)
 	tableController := controller.NewTableController(tableService)
+	categoryController := controller.NewCategoryController(categoryService)
 
 	defer config.CloseDatabaseConnection(db)
 
@@ -74,6 +78,7 @@ func main() {
 
 	route.UserRoute(server, userController, jwtService)
 	route.TableRoute(server, tableController, jwtService)
+	route.CategoryRoute(server, categoryController, jwtService)
 
 	run(server)
 }
