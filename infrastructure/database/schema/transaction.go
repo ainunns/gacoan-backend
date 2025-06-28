@@ -4,10 +4,11 @@ import (
 	"fp-kpl/domain/identity"
 	"fp-kpl/domain/shared"
 	"fp-kpl/domain/transaction"
+	"time"
+
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
 	"gorm.io/gorm"
-	"time"
 )
 
 type Transaction struct {
@@ -24,8 +25,9 @@ type Transaction struct {
 	UpdatedAt     time.Time       `gorm:"type:timestamp with time zone;column:updated_at"`
 	DeletedAt     gorm.DeletedAt  `gorm:"type:timestamp with time zone;column:deleted_at"`
 
-	User  User  `gorm:"foreignKey:UserID"`
-	Table Table `gorm:"foreignKey:TableID"`
+	User   User    `gorm:"foreignKey:UserID"`
+	Table  Table   `gorm:"foreignKey:TableID"`
+	Orders []Order `gorm:"foreignKey:TransactionID"`
 }
 
 func TransactionEntityToSchema(entity transaction.Transaction) Transaction {
