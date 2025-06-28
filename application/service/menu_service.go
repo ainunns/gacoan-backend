@@ -12,6 +12,7 @@ type (
 		GetAllMenus(ctx context.Context) ([]response.Menu, error)
 		GetMenuByID(ctx context.Context, id string) (response.Menu, error)
 		GetMenusByCategoryID(ctx context.Context, categoryID string) ([]response.Menu, error)
+		UpdateMenuAvailability(ctx context.Context, id string, isAvailable bool) (response.Menu, error)
 	}
 
 	menuService struct {
@@ -111,4 +112,31 @@ func (s *menuService) GetMenusByCategoryID(ctx context.Context, categoryID strin
 	}
 
 	return responseMenus, nil
+}
+
+func (s *menuService) UpdateMenuAvailability(ctx context.Context, id string, isAvailable bool) (response.Menu, error) {
+	updatedMenu, err := s.menuRepository.UpdateMenuAvailability(ctx, nil, id, isAvailable)
+	if err != nil {
+		return response.Menu{}, menu.ErrorUpdateMenuAvailability
+	}
+
+	categoryDetail, err := s.categoryRepository.GetCategoryByID(ctx, nil, updatedMenu.CategoryID.String())
+	if err != nil {
+		return response.Menu{}, category.ErrorGetCategoryByID
+	}
+
+	responseMenu := response.Menu{
+		ID:          updatedMenu.ID.String(),
+		Name:        updatedMenu.Name,
+		Description: updatedMenu.Description,
+		ImageUrl:    updatedMenu.ImageURL.Path,
+		IsAvailable: updatedMenu.IsAvailable,
+		Price:       updatedMenu.Price.Price,
+		Category: response.Category{
+			ID:   categoryDetail.ID.String(),
+			Name: categoryDetail.Name,
+		},
+	}
+
+	return responseMenu, nil
 }

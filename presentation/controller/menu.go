@@ -2,6 +2,7 @@ package controller
 
 import (
 	"errors"
+	"fp-kpl/application/request"
 	"fp-kpl/application/response"
 	"fp-kpl/application/service"
 	menu "fp-kpl/domain/menu/menu_item"
@@ -16,6 +17,7 @@ type (
 	MenuController interface {
 		GetAllMenus(ctx *gin.Context)
 		GetMenuByID(ctx *gin.Context)
+		UpdateMenuAvailability(ctx *gin.Context)
 	}
 
 	menuController struct {
@@ -70,5 +72,32 @@ func (c *menuController) GetMenuByID(ctx *gin.Context) {
 	}
 
 	res := presentation.BuildResponseSuccess(message.SuccessGetMenu, responseMenu)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (c *menuController) UpdateMenuAvailability(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	var req request.UpdateMenuAvailabilityRequest
+	if err := ctx.ShouldBind(&req); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromBody, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	responseMenu, err := c.menuService.UpdateMenuAvailability(ctx.Request.Context(), id, req.IsAvailable)
+	if err != nil {
+		if errors.Is(err, menu.ErrorMenuNotFound) {
+			res := presentation.BuildResponseFailed(message.FailedUpdateMenuAvailability, err.Error(), nil)
+			ctx.AbortWithStatusJSON(http.StatusNotFound, res)
+			return
+		}
+
+		res := presentation.BuildResponseFailed(message.FailedUpdateMenuAvailability, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessUpdateMenuAvailability, responseMenu)
 	ctx.JSON(http.StatusOK, res)
 }

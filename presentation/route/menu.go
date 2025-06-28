@@ -13,5 +13,6 @@ func MenuRoute(route *gin.Engine, menuController controller.MenuController, jwtS
 	{
 		menuGroup.GET("/", middleware.Authenticate(jwtService), menuController.GetAllMenus)
 		menuGroup.GET("/:id", middleware.Authenticate(jwtService), menuController.GetMenuByID)
+		menuGroup.PATCH("/:id/availability", middleware.Authenticate(jwtService), menuController.UpdateMenuAvailability)
 	}
 }
