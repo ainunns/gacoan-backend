@@ -24,8 +24,8 @@ type Transaction struct {
 	UpdatedAt     time.Time       `gorm:"type:timestamp with time zone;column:updated_at"`
 	DeletedAt     gorm.DeletedAt  `gorm:"type:timestamp with time zone;column:deleted_at"`
 
-	User  User  `gorm:"foreignKey:UserID;"`
-	Table Table `gorm:"foreignKey:TableID;"`
+	User  User  `gorm:"foreignKey:UserID"`
+	Table Table `gorm:"foreignKey:TableID"`
 }
 
 func TransactionEntityToSchema(entity transaction.Transaction) Transaction {
