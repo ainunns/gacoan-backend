@@ -27,12 +27,16 @@ func NewMenuService(menuRepository menu.Repository, categoryRepository category.
 func (s *menuService) GetAllMenus(ctx context.Context) ([]response.Menu, error) {
 	retrievedMenus, err := s.menuRepository.GetAllMenus(ctx, nil)
 	if err != nil {
-		return nil, menu.ErrorGetAllMenus
+		return nil, menu.ErrorCategoryNotFound
 	}
 
 	responseMenus := make([]response.Menu, 0, len(retrievedMenus))
 	for _, menu := range retrievedMenus {
-		category, _ := s.categoryRepository.GetCategoryByID(ctx, nil, menu.CategoryID.String())
+		categoryDetail, err := s.categoryRepository.GetCategoryByID(ctx, nil, menu.CategoryID.String())
+
+		if err != nil {
+			return nil, category.ErrorGetCategoryByID
+		}
 
 		responseMenus = append(responseMenus, response.Menu{
 			ID:          menu.ID.String(),
@@ -40,8 +44,8 @@ func (s *menuService) GetAllMenus(ctx context.Context) ([]response.Menu, error) 
 			Description: menu.Description,
 			Price:       menu.Price.Price,
 			Category: response.Category{
-				ID:   category.ID.String(),
-				Name: category.Name,
+				ID:   categoryDetail.ID.String(),
+				Name: categoryDetail.Name,
 			},
 		})
 	}
@@ -55,7 +59,10 @@ func (s *menuService) GetMenuByID(ctx context.Context, id string) (response.Menu
 		return response.Menu{}, menu.ErrorGetMenuByID
 	}
 
-	category, _ := s.categoryRepository.GetCategoryByID(ctx, nil, retrievedMenu.CategoryID.String())
+	categoryDetail, err := s.categoryRepository.GetCategoryByID(ctx, nil, retrievedMenu.CategoryID.String())
+	if err != nil {
+		return response.Menu{}, category.ErrorGetCategoryByID
+	}
 
 	responseMenu := response.Menu{
 		ID:          retrievedMenu.ID.String(),
@@ -63,8 +70,8 @@ func (s *menuService) GetMenuByID(ctx context.Context, id string) (response.Menu
 		Description: retrievedMenu.Description,
 		Price:       retrievedMenu.Price.Price,
 		Category: response.Category{
-			ID:   category.ID.String(),
-			Name: category.Name,
+			ID:   categoryDetail.ID.String(),
+			Name: categoryDetail.Name,
 		},
 	}
 
@@ -79,7 +86,11 @@ func (s *menuService) GetMenusByCategoryID(ctx context.Context, categoryID strin
 
 	responseMenus := make([]response.Menu, 0, len(retrievedMenus))
 	for _, menu := range retrievedMenus {
-		category, _ := s.categoryRepository.GetCategoryByID(ctx, nil, menu.CategoryID.String())
+		categoryDetail, err := s.categoryRepository.GetCategoryByID(ctx, nil, menu.CategoryID.String())
+
+		if err != nil {
+			return nil, category.ErrorGetCategoryByID
+		}
 
 		responseMenus = append(responseMenus, response.Menu{
 			ID:          menu.ID.String(),
@@ -87,8 +98,8 @@ func (s *menuService) GetMenusByCategoryID(ctx context.Context, categoryID strin
 			Description: menu.Description,
 			Price:       menu.Price.Price,
 			Category: response.Category{
-				ID:   category.ID.String(),
-				Name: category.Name,
+				ID:   categoryDetail.ID.String(),
+				Name: categoryDetail.Name,
 			},
 		})
 	}
