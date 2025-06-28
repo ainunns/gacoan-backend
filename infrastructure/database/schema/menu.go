@@ -39,7 +39,17 @@ func (d *Duration) Scan(value interface{}) error {
 }
 
 func (d Duration) Value() (driver.Value, error) {
-	return d.Duration.Nanoseconds(), nil
+	// Convert to PostgreSQL interval format instead of nanoseconds
+	// Format: HH:MM:SS or HH:MM:SS.microseconds
+	hours := int(d.Duration.Hours())
+	minutes := int(d.Duration.Minutes()) % 60
+	seconds := int(d.Duration.Seconds()) % 60
+	microseconds := int(d.Duration.Microseconds()) % 1000000
+
+	if microseconds > 0 {
+		return fmt.Sprintf("%02d:%02d:%02d.%06d", hours, minutes, seconds, microseconds), nil
+	}
+	return fmt.Sprintf("%02d:%02d:%02d", hours, minutes, seconds), nil
 }
 
 func (d *Duration) parseInterval(interval string) error {
