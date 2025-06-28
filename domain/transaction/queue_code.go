@@ -6,13 +6,22 @@ import (
 )
 
 type QueueCode struct {
-	Code string
+	Code  string
+	Valid bool
 }
 
 func NewQueueCode(code string) (QueueCode, error) {
 	return QueueCode{
-		Code: code,
+		Code:  code,
+		Valid: strings.HasPrefix(code, "Q") && len(code) == 5 && code[1:] != "0000",
 	}, nil
+}
+
+func NewQueueCodeFromSchema(code string, valid bool) QueueCode {
+	return QueueCode{
+		Code:  code,
+		Valid: valid,
+	}
 }
 
 func (q *QueueCode) QueueNumber() (int, error) {

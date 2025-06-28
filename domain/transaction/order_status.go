@@ -33,6 +33,12 @@ func NewOrderStatus(status string) (OrderStatus, error) {
 	}, nil
 }
 
+func NewOrderStatusFromSchema(status string) OrderStatus {
+	return OrderStatus{
+		Status: status,
+	}
+}
+
 func isValidOrderStatus(status string) bool {
 	for _, orderStatus := range OrderStatuses {
 		if orderStatus == status {
