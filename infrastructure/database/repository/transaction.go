@@ -70,19 +70,24 @@ func (r *transactionRepository) GetAllTransactionsWithPagination(ctx context.Con
 		return pagination.ResponseWithData{}, err
 	}
 
-	if err = query.Scopes(pagination.Paginate(req)).Find(&transactionSchemas).Error; err != nil {
+	if err = query.Scopes(pagination.Paginate(req)).
+		Preload("Table").
+		Preload("Orders").
+		Preload("Orders.Menu").
+		Find(&transactionSchemas).Error; err != nil {
 		return pagination.ResponseWithData{}, err
 	}
 
 	totalPage := pagination.TotalPage(count, int64(req.PerPage))
 
-	transactionEntities := make([]any, len(transactionSchemas))
+	// Return schema data directly to avoid N+1 queries
+	data := make([]any, len(transactionSchemas))
 	for i, transactionSchema := range transactionSchemas {
-		transactionEntities[i] = schema.TransactionSchemaToEntity(transactionSchema)
+		data[i] = transactionSchema
 	}
 
 	return pagination.ResponseWithData{
-		Data: transactionEntities,
+		Data: data,
 		Response: pagination.Response{
 			Page:    req.Page,
 			PerPage: req.PerPage,
