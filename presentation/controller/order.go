@@ -2,6 +2,7 @@ package controller
 
 import (
 	"fp-kpl/application/request"
+	"fp-kpl/application/response"
 	"fp-kpl/application/service"
 	"fp-kpl/presentation"
 	"fp-kpl/presentation/message"
@@ -40,6 +41,10 @@ func (c *orderController) CalculateTotalPrice(ctx *gin.Context) {
 		return
 	}
 
-	res := presentation.BuildResponseSuccess(message.SuccessCalculateTotalPrice, totalPrice)
+	result := response.CalculateTotalPrice{
+		TotalPrice: totalPrice.Price.String(),
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessCalculateTotalPrice, result)
 	ctx.JSON(http.StatusOK, res)
 }
