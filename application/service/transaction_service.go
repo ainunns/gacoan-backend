@@ -430,6 +430,10 @@ func (s *transactionService) StartCooking(ctx context.Context, req request.Start
 		return response.StartCooking{}, transaction.ErrorInvalidTransaction
 	}
 
+	if transactionSchema.OrderStatus != transaction.OrderStatusPending {
+		return response.StartCooking{}, transaction.ErrorInvalidOrderStatus
+	}
+
 	_, err = s.transactionRepository.UpdateTransactionCookingStatusStart(ctx, tx, transactionSchema.ID.String())
 	if err != nil {
 		return response.StartCooking{}, err
@@ -473,6 +477,10 @@ func (s *transactionService) FinishCooking(ctx context.Context, req request.Fini
 		return response.FinishCooking{}, transaction.ErrorInvalidTransaction
 	}
 
+	if transactionSchema.OrderStatus != transaction.OrderStatusPreparing {
+		return response.FinishCooking{}, transaction.ErrorInvalidOrderStatus
+	}
+
 	_, err = s.transactionRepository.UpdateTransactionCookingStatusFinish(ctx, nil, transactionSchema.ID.String())
 	if err != nil {
 		return response.FinishCooking{}, err
@@ -509,6 +517,10 @@ func (s *transactionService) StartDelivering(ctx context.Context, req request.St
 	transactionSchema, ok := retrievedData.(schema.Transaction)
 	if !ok {
 		return response.StartDelivering{}, transaction.ErrorInvalidTransaction
+	}
+
+	if transactionSchema.OrderStatus != transaction.OrderStatusReadyToServe {
+		return response.StartDelivering{}, transaction.ErrorInvalidOrderStatus
 	}
 
 	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusStart(ctx, nil, transactionSchema.ID.String())
@@ -564,6 +576,10 @@ func (s *transactionService) FinishDelivering(ctx context.Context, req request.F
 	transactionSchema, ok := retrievedData.(schema.Transaction)
 	if !ok {
 		return response.FinishDelivering{}, transaction.ErrorInvalidTransaction
+	}
+
+	if transactionSchema.OrderStatus != transaction.OrderStatusDelivering {
+		return response.FinishDelivering{}, transaction.ErrorInvalidOrderStatus
 	}
 
 	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusFinish(ctx, nil, transactionSchema.ID.String())
