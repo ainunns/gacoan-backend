@@ -85,7 +85,13 @@ func (c *menuController) UpdateMenuAvailability(ctx *gin.Context) {
 		return
 	}
 
-	responseMenu, err := c.menuService.UpdateMenuAvailability(ctx.Request.Context(), id, req.IsAvailable)
+	if req.IsAvailable == nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromBody, "Field is_available is required", nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	responseMenu, err := c.menuService.UpdateMenuAvailability(ctx.Request.Context(), id, *req.IsAvailable)
 	if err != nil {
 		if errors.Is(err, menu.ErrorMenuNotFound) {
 			res := presentation.BuildResponseFailed(message.FailedUpdateMenuAvailability, err.Error(), nil)
