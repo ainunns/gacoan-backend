@@ -226,7 +226,7 @@ func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}
 
 	var transactionSchema schema.Transaction
 
-	query := db.WithContext(ctx).Where("user_id = ?", userID).Where("payment_status IN ?", []string{"settlement", "captured"})
+	query := db.WithContext(ctx).Where("user_id = ?", userID).Where("payment_status IN ?", []string{transaction.PaymentStatusSettlement, transaction.PaymentStatusCapture})
 
 	if err = query.Where("order_status = ?", "pending").
 		Preload("Table").
