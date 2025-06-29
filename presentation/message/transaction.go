@@ -7,6 +7,7 @@ const (
 	FailedGetTransaction     = "failed get transaction"
 	FailedGetNextOrder       = "failed get next order"
 	FailedStartCooking       = "failed start cooking"
+	FailedFinishCooking      = "failed finish cooking"
 
 	SuccessCreateTransaction  = "success create transaction"
 	SuccessHookTransaction    = "success hook transaction"
@@ -14,4 +15,5 @@ const (
 	SuccessGetTransaction     = "success get transaction"
 	SuccessGetNextOrder       = "success get next order"
 	SuccessStartCooking       = "success start cooking"
+	SuccessFinishCooking      = "success finish cooking"
 )
