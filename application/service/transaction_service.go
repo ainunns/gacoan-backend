@@ -27,6 +27,7 @@ type (
 		GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error)
 		GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error)
 		GetNextOrder(ctx context.Context, userID string) (response.NextOrder, error)
+		StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error)
 	}
 
 	transactionService struct {
@@ -346,6 +347,44 @@ func (s *transactionService) GetNextOrder(ctx context.Context, userID string) (r
 	}
 
 	return response.NextOrder{
+		QueueCode: *transactionSchema.QueueCode,
+		Orders:    orderResponses,
+	}, nil
+}
+
+func (s *transactionService) StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error) {
+	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, nil, req.QueueCode)
+	if err != nil {
+		return response.StartCooking{}, err
+	}
+
+	if retrievedData == nil {
+		return response.StartCooking{}, nil
+	}
+
+	transactionSchema, ok := retrievedData.(schema.Transaction)
+	if !ok {
+		return response.StartCooking{}, transaction.ErrorInvalidTransaction
+	}
+
+	_, err = s.transactionRepository.UpdateTransactionCookingStatusStart(ctx, nil, transactionSchema.ID.String())
+	if err != nil {
+		return response.StartCooking{}, err
+	}
+
+	var orderResponses []response.OrderForTransaction
+	for _, orderSchema := range transactionSchema.Orders {
+		orderResponses = append(orderResponses, response.OrderForTransaction{
+			Menu: response.MenuForTransaction{
+				ID:    orderSchema.Menu.ID.String(),
+				Name:  orderSchema.Menu.Name,
+				Price: orderSchema.Menu.Price.String(),
+			},
+			Quantity: orderSchema.Quantity,
+		})
+	}
+
+	return response.StartCooking{
 		QueueCode: *transactionSchema.QueueCode,
 		Orders:    orderResponses,
 	}, nil

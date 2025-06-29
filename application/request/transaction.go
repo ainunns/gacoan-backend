@@ -10,4 +10,8 @@ type (
 		MenuID   string `json:"menu_id" form:"menu_id" binding:"required"`
 		Quantity int    `json:"quantity" form:"quantity" binding:"required"`
 	}
+
+	StartCooking struct {
+		QueueCode string `json:"queue_code" form:"queue_code" binding:"required"`
+	}
 )
