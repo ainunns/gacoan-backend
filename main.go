@@ -80,6 +80,7 @@ func main() {
 	categoryController := controller.NewCategoryController(categoryService)
 	menuController := controller.NewMenuController(menuService)
 	transactionController := controller.NewTransactionController(transactionService)
+	orderController := controller.NewOrderController(orderService)
 
 	defer config.CloseDatabaseConnection(db)
 
@@ -95,6 +96,7 @@ func main() {
 	route.CategoryRoute(server, categoryController, jwtService)
 	route.MenuRoute(server, menuController, jwtService)
 	route.TransactionRoute(server, transactionController, jwtService)
+	route.OrderRoute(server, orderController, jwtService)
 
 	run(server)
 }
