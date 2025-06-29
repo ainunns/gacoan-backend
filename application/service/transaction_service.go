@@ -251,68 +251,54 @@ func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Contex
 }
 
 func (s *transactionService) GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error) {
-	retrievedTransaction, err := s.transactionRepository.GetTransactionByID(ctx, nil, userID, id)
+	retrievedData, err := s.transactionRepository.GetTransactionByID(ctx, nil, userID, id)
 	if err != nil {
 		return response.Transaction{}, err
 	}
 
-	// Get orders for this transaction
-	retrievedOrders, err := s.orderRepository.GetOrdersByTransactionID(ctx, nil, retrievedTransaction.ID.String())
-	if err != nil {
-		return response.Transaction{}, err
+	transactionSchema, ok := retrievedData.(schema.Transaction)
+	if !ok {
+		return response.Transaction{}, transaction.ErrorInvalidTransaction
 	}
 
 	var orderResponses []response.OrderForTransaction
-	for _, orderItem := range retrievedOrders {
-		menuEntity, err := s.menuRepository.GetMenuByID(ctx, nil, orderItem.MenuID.String())
-		if err != nil {
-			return response.Transaction{}, err
-		}
-
+	for _, orderSchema := range transactionSchema.Orders {
 		orderResponses = append(orderResponses, response.OrderForTransaction{
 			Menu: response.MenuForTransaction{
-				ID:    menuEntity.ID.String(),
-				Name:  menuEntity.Name,
-				Price: menuEntity.Price.Price.String(),
+				ID:    orderSchema.Menu.ID.String(),
+				Name:  orderSchema.Menu.Name,
+				Price: orderSchema.Menu.Price.String(),
 			},
-			Quantity: orderItem.Quantity,
+			Quantity: orderSchema.Quantity,
 		})
 	}
 
-	// Calculate max cooking time
-	maxCookingTime, err := s.calculateMaxCookingTimeFromOrders(ctx, retrievedOrders)
-	if err != nil {
-		return response.Transaction{}, err
-	}
+	maxCookingTime := s.calculateMaxCookingTimeFromSchema(transactionSchema.Orders)
 
-	// Get table information
-	retrievedTable, err := s.tableRepository.GetTableByID(ctx, nil, retrievedTransaction.TableID.String())
-	if err != nil {
-		return response.Transaction{}, err
-	}
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
 
 	now := time.Now()
 	isDelayed := false
 
-	if retrievedTransaction.CookedAt != nil {
-		expectedFinishTime := retrievedTransaction.CookedAt.Add(maxCookingTime)
-		if retrievedTransaction.ServedAt != nil {
-			isDelayed = retrievedTransaction.ServedAt.After(expectedFinishTime)
+	if transactionEntity.CookedAt != nil {
+		expectedFinishTime := transactionEntity.CookedAt.Add(maxCookingTime)
+		if transactionEntity.ServedAt != nil {
+			isDelayed = transactionEntity.ServedAt.After(expectedFinishTime)
 		} else {
 			isDelayed = now.After(expectedFinishTime)
 		}
 	}
 
 	return response.Transaction{
-		ID:           retrievedTransaction.ID.String(),
-		QueueCode:    retrievedTransaction.QueueCode.Code,
+		ID:           transactionSchema.ID.String(),
+		QueueCode:    *transactionSchema.QueueCode,
 		EstimateTime: maxCookingTime.String(),
 		Orders:       orderResponses,
-		OrderStatus:  retrievedTransaction.OrderStatus.Status,
-		TotalPrice:   retrievedTransaction.TotalPrice.Price,
+		OrderStatus:  transactionSchema.OrderStatus,
+		TotalPrice:   transactionSchema.TotalPrice,
 		Table: response.Table{
-			ID:          retrievedTable.ID.String(),
-			TableNumber: retrievedTable.TableNumber,
+			ID:          transactionSchema.Table.ID.String(),
+			TableNumber: transactionSchema.Table.TableNumber,
 		},
 		IsDelayed: isDelayed,
 	}, nil
@@ -328,21 +314,4 @@ func (s *transactionService) calculateMaxCookingTimeFromSchema(orders []schema.O
 	}
 
 	return maxCookingTime
-}
-
-func (s *transactionService) calculateMaxCookingTimeFromOrders(ctx context.Context, orders []order.Order) (time.Duration, error) {
-	maxCookingTime := time.Duration(0)
-
-	for _, orderItem := range orders {
-		retrievedMenu, err := s.menuRepository.GetMenuByID(ctx, nil, orderItem.MenuID.String())
-		if err != nil {
-			return 0, err
-		}
-
-		if retrievedMenu.CookingTime > maxCookingTime {
-			maxCookingTime = retrievedMenu.CookingTime
-		}
-	}
-
-	return maxCookingTime, nil
 }
