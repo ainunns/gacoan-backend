@@ -13,6 +13,8 @@ import (
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
 	"fp-kpl/infrastructure/database/validation"
+	"fp-kpl/platform/pagination"
+	"time"
 
 	"github.com/google/uuid"
 )
@@ -21,6 +23,8 @@ type (
 	TransactionService interface {
 		CreateTransaction(ctx context.Context, userID string, req request.TransactionCreate) (response.TransactionCreate, error)
 		HookTransaction(ctx context.Context, datas map[string]interface{}) error
+		GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error)
+		CalculateMaxCookingTime(ctx context.Context, orders []order.Order) (time.Duration, error)
 	}
 
 	transactionService struct {
@@ -131,7 +135,7 @@ func (s *transactionService) CreateTransaction(ctx context.Context, userID strin
 		}
 
 		createdOrders = append(createdOrders, response.OrderForTransactionCreate{
-			Menu: response.MenuForTransactionCreate{
+			Menu: response.MenuForTransaction{
 				ID:    retrievedMenu.ID.String(),
 				Name:  retrievedMenu.Name,
 				Price: retrievedMenu.Price.Price.String(),
@@ -182,4 +186,101 @@ func (s *transactionService) HookTransaction(ctx context.Context, datas map[stri
 	}
 
 	return nil
+}
+
+func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error) {
+	retrievedData, err := s.transactionRepository.GetAllTransactionsWithPagination(ctx, nil, userID, req)
+	if err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	data := make([]any, 0, len(retrievedData.Data))
+	for _, retrievedTransaction := range retrievedData.Data {
+		transactionEntity, ok := retrievedTransaction.(transaction.Transaction)
+		if !ok {
+			return pagination.ResponseWithData{}, transaction.ErrorInvalidTransaction
+		}
+
+		var retrievedOrder []order.Order
+		retrievedOrder, err = s.orderRepository.GetOrdersByTransactionID(ctx, nil, transactionEntity.ID.String())
+		if err != nil {
+			return pagination.ResponseWithData{}, order.ErrorGetOrdersByTransactionID
+		}
+
+		var orderResponses []response.OrderForTransaction
+		for _, orderItem := range retrievedOrder {
+			menuEntity, err := s.menuRepository.GetMenuByID(ctx, nil, orderItem.MenuID.String())
+			if err != nil {
+				return pagination.ResponseWithData{}, menu.ErrorGetMenuByID
+			}
+
+			orderResponses = append(orderResponses, response.OrderForTransaction{
+				Menu: response.MenuForTransaction{
+					ID:    menuEntity.ID.String(),
+					Name:  menuEntity.Name,
+					Price: menuEntity.Price.Price.String(),
+				},
+				Quantity: orderItem.Quantity,
+			})
+		}
+
+		maxCookingTime, err := s.CalculateMaxCookingTime(ctx, retrievedOrder)
+		if err != nil {
+			return pagination.ResponseWithData{}, err
+		}
+
+		now := time.Now()
+		isDelayed := false
+
+		if transactionEntity.CookedAt != nil {
+			expectedFinishTime := transactionEntity.CookedAt.Add(maxCookingTime)
+			if transactionEntity.ServedAt != nil {
+				isDelayed = transactionEntity.ServedAt.After(expectedFinishTime)
+			} else {
+				isDelayed = now.After(expectedFinishTime)
+			}
+		}
+
+		var retrievedTable table.Table
+		retrievedTable, err = s.tableRepository.GetTableByID(ctx, nil, transactionEntity.TableID.String())
+		if err != nil {
+			return pagination.ResponseWithData{}, table.ErrorGetTableByID
+		}
+
+		data = append(data, response.Transaction{
+			ID:           transactionEntity.ID.String(),
+			QueueCode:    transactionEntity.QueueCode.Code,
+			EstimateTime: maxCookingTime.String(),
+			Orders:       orderResponses,
+			TotalPrice:   transactionEntity.TotalPrice.Price,
+			Table: response.Table{
+				ID:          retrievedTable.ID.String(),
+				TableNumber: retrievedTable.TableNumber,
+			},
+			OrderStatus: transactionEntity.OrderStatus.Status,
+			IsDelayed:   isDelayed,
+		})
+	}
+
+	return pagination.ResponseWithData{
+		Data:     data,
+		Response: retrievedData.Response,
+	}, nil
+}
+
+func (s *transactionService) CalculateMaxCookingTime(ctx context.Context, orders []order.Order) (time.Duration, error) {
+	maxCookingTime := time.Duration(0)
+
+	for _, orderItem := range orders {
+		menuEntity, err := s.menuRepository.GetMenuByID(ctx, nil, orderItem.MenuID.String())
+		if err != nil {
+			return 0, menu.ErrorGetMenuByID
+		}
+
+		if menuEntity.CookingTime > maxCookingTime {
+			maxCookingTime = menuEntity.CookingTime
+		}
+	}
+
+	return maxCookingTime, nil
 }
