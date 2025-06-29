@@ -19,6 +19,7 @@ type (
 		GetTransactionByID(ctx *gin.Context)
 		GetNextOrder(ctx *gin.Context)
 		StartCooking(ctx *gin.Context)
+		FinishCooking(ctx *gin.Context)
 	}
 
 	transactionController struct {
@@ -137,5 +138,24 @@ func (t transactionController) StartCooking(ctx *gin.Context) {
 	}
 
 	res := presentation.BuildResponseSuccess(message.SuccessStartCooking, result)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (t transactionController) FinishCooking(ctx *gin.Context) {
+	var req request.FinishCooking
+	if err := ctx.ShouldBind(&req); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromBody, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	result, err := t.transactionService.FinishCooking(ctx.Request.Context(), req)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedFinishCooking, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessFinishCooking, result)
 	ctx.JSON(http.StatusOK, res)
 }

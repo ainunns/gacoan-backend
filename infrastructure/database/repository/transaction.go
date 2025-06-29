@@ -232,3 +232,24 @@ func (r *transactionRepository) UpdateTransactionCookingStatusStart(ctx context.
 	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
 	return transactionEntity, nil
 }
+
+func (r *transactionRepository) UpdateTransactionCookingStatusFinish(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", "ready_to_serve").Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
+}

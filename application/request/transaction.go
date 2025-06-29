@@ -14,4 +14,8 @@ type (
 	StartCooking struct {
 		QueueCode string `json:"queue_code" form:"queue_code" binding:"required"`
 	}
+
+	FinishCooking struct {
+		QueueCode string `json:"queue_code" form:"queue_code" binding:"required"`
+	}
 )
