@@ -36,7 +36,7 @@ func (r *orderRepository) CreateOrder(ctx context.Context, tx interface{}, order
 	return orderEntity, nil
 }
 
-func (r *orderRepository) GetOrderByTransactionID(ctx context.Context, tx interface{}, transactionID string) ([]order.Order, error) {
+func (r *orderRepository) GetOrdersByTransactionID(ctx context.Context, tx interface{}, transactionID string) ([]order.Order, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
 		return nil, err
