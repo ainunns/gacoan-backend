@@ -16,6 +16,7 @@ type (
 		CreateTransaction(ctx *gin.Context)
 		HookTransaction(ctx *gin.Context)
 		GetAllTransactionsWithPagination(ctx *gin.Context)
+		GetTransactionByID(ctx *gin.Context)
 	}
 
 	transactionController struct {
@@ -86,5 +87,20 @@ func (t transactionController) GetAllTransactionsWithPagination(ctx *gin.Context
 	}
 
 	res := presentation.BuildResponseSuccess(message.SuccessGetAllTransactions, result.Data, result.Response)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (t transactionController) GetTransactionByID(ctx *gin.Context) {
+	id := ctx.Param("id")
+	userID := ctx.MustGet("user_id").(string)
+
+	result, err := t.transactionService.GetTransactionByID(ctx.Request.Context(), userID, id)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetTransaction, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessGetTransaction, result)
 	ctx.JSON(http.StatusOK, res)
 }

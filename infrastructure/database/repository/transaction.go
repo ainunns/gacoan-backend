@@ -97,7 +97,7 @@ func (r *transactionRepository) GetAllTransactionsWithPagination(ctx context.Con
 	}, nil
 }
 
-func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Transaction, error) {
+func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (transaction.Transaction, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
 		return transaction.Transaction{}, err
@@ -110,7 +110,12 @@ func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx inter
 
 	var transactionSchema schema.Transaction
 
-	if err = db.WithContext(ctx).Where("id = ?", id).Take(&transactionSchema).Error; err != nil {
+	query := db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID)
+
+	if err = query.Preload("Table").
+		Preload("Orders").
+		Preload("Orders.Menu").
+		Take(&transactionSchema).Error; err != nil {
 		return transaction.Transaction{}, err
 	}
 
