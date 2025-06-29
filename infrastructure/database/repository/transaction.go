@@ -104,3 +104,23 @@ func (r *transactionRepository) GetLatestQueueCode(ctx context.Context, tx inter
 	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
 	return transactionEntity.QueueCode, nil
 }
+
+func (r *transactionRepository) UpdateTransaction(ctx context.Context, tx interface{}, transactionEntity transaction.Transaction) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	transactionSchema := schema.TransactionEntityToSchema(transactionEntity)
+	if err = db.WithContext(ctx).Where("id = ?", transactionEntity.ID).Updates(&transactionSchema).Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity = schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
+}
