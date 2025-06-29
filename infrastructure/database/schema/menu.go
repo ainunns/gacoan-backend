@@ -119,7 +119,7 @@ func (d *Duration) parseInterval(interval string) error {
 type Menu struct {
 	ID          uuid.UUID       `gorm:"type:uuid;primaryKey;default:uuid_generate_v4();column:id"`
 	CategoryID  uuid.UUID       `gorm:"type:uuid;not null;column:category_id"`
-	Name        string          `gorm:"type:varchar(255);not null;column:name"`
+	Name        string          `gorm:"type:varchar(255);uniqueIndex;not null;column:name"`
 	ImageURL    string          `gorm:"type:varchar(255);not null;column:image_url"`
 	Price       decimal.Decimal `gorm:"type:decimal(10,2);not null;column:price"`
 	IsAvailable bool            `gorm:"type:boolean;not null;column:is_available"`
