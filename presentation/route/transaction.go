@@ -18,5 +18,6 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 
 		// Kitchen
 		transactionGroup.GET("/next-order", middleware.Authenticate(jwtService), transactionController.GetNextOrder)
+		transactionGroup.POST("/start-cooking", middleware.Authenticate(jwtService), transactionController.StartCooking)
 	}
 }

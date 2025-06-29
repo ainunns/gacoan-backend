@@ -157,26 +157,6 @@ func (r *transactionRepository) GetLatestQueueCode(ctx context.Context, tx inter
 	return fmt.Sprintf("Q%04d", num), nil
 }
 
-func (r *transactionRepository) UpdateTransaction(ctx context.Context, tx interface{}, transactionEntity transaction.Transaction) (transaction.Transaction, error) {
-	validatedTransaction, err := validation.ValidateTransaction(tx)
-	if err != nil {
-		return transaction.Transaction{}, err
-	}
-
-	db := validatedTransaction.DB()
-	if db == nil {
-		db = r.db.DB()
-	}
-
-	transactionSchema := schema.TransactionEntityToSchema(transactionEntity)
-	if err = db.WithContext(ctx).Where("id = ?", transactionEntity.ID).Updates(&transactionSchema).Error; err != nil {
-		return transaction.Transaction{}, err
-	}
-
-	transactionEntity = schema.TransactionSchemaToEntity(transactionSchema)
-	return transactionEntity, nil
-}
-
 func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
@@ -204,4 +184,51 @@ func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}
 	}
 
 	return transactionSchema, nil
+}
+
+func (r *transactionRepository) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return nil, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+	today := time.Now().Format("2006-01-02")
+
+	if err = db.WithContext(ctx).Where("queue_code = ?", queueCode).
+		Where("DATE(created_at) = ?", today).
+		Preload("Table").
+		Preload("Orders").
+		Preload("Orders.Menu").
+		First(&transactionSchema).Error; err != nil {
+		return nil, err
+	}
+
+	return transactionSchema, nil
+}
+
+func (r *transactionRepository) UpdateTransactionCookingStatusStart(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", "preparing").Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
 }
