@@ -28,6 +28,7 @@ type (
 		GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error)
 		GetNextOrder(ctx context.Context, userID string) (response.NextOrder, error)
 		StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error)
+		FinishCooking(ctx context.Context, req request.FinishCooking) (response.FinishCooking, error)
 	}
 
 	transactionService struct {
@@ -385,6 +386,44 @@ func (s *transactionService) StartCooking(ctx context.Context, req request.Start
 	}
 
 	return response.StartCooking{
+		QueueCode: *transactionSchema.QueueCode,
+		Orders:    orderResponses,
+	}, nil
+}
+
+func (s *transactionService) FinishCooking(ctx context.Context, req request.FinishCooking) (response.FinishCooking, error) {
+	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, nil, req.QueueCode)
+	if err != nil {
+		return response.FinishCooking{}, err
+	}
+
+	if retrievedData == nil {
+		return response.FinishCooking{}, nil
+	}
+
+	transactionSchema, ok := retrievedData.(schema.Transaction)
+	if !ok {
+		return response.FinishCooking{}, transaction.ErrorInvalidTransaction
+	}
+
+	_, err = s.transactionRepository.UpdateTransactionCookingStatusFinish(ctx, nil, transactionSchema.ID.String())
+	if err != nil {
+		return response.FinishCooking{}, err
+	}
+
+	var orderResponses []response.OrderForTransaction
+	for _, orderSchema := range transactionSchema.Orders {
+		orderResponses = append(orderResponses, response.OrderForTransaction{
+			Menu: response.MenuForTransaction{
+				ID:    orderSchema.Menu.ID.String(),
+				Name:  orderSchema.Menu.Name,
+				Price: orderSchema.Menu.Price.String(),
+			},
+			Quantity: orderSchema.Quantity,
+		})
+	}
+
+	return response.FinishCooking{
 		QueueCode: *transactionSchema.QueueCode,
 		Orders:    orderResponses,
 	}, nil

@@ -12,5 +12,6 @@ type Repository interface {
 	GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error)
 	GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error)
 	UpdateTransactionCookingStatusStart(ctx context.Context, tx interface{}, transactionID string) (Transaction, error)
+	UpdateTransactionCookingStatusFinish(ctx context.Context, tx interface{}, transactionID string) (Transaction, error)
 	GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error)
 }
