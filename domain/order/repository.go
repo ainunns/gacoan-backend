@@ -1,10 +1,12 @@
 package order
 
-import "context"
+import (
+	"context"
+)
 
 type (
 	Repository interface {
 		CreateOrder(ctx context.Context, tx interface{}, orderEntity Order) (Order, error)
-		GetOrderByTransactionID(ctx context.Context, tx interface{}, transactionID string) ([]Order, error)
+		GetOrdersByTransactionID(ctx context.Context, tx interface{}, transactionID string) ([]Order, error)
 	}
 )

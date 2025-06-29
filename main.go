@@ -3,6 +3,7 @@ package main
 import (
 	"fp-kpl/application/service"
 	"fp-kpl/command"
+	"fp-kpl/infrastructure/adapter/payment_gateway"
 	"fp-kpl/infrastructure/database/config"
 	"fp-kpl/infrastructure/database/db_transaction"
 	"fp-kpl/infrastructure/database/repository"
@@ -52,23 +53,30 @@ func run(server *gin.Engine) {
 func main() {
 	db := config.SetUpDatabaseConnection()
 
+	paymentGateway := payment_gateway.NewMidtransAdapter(db)
+
 	jwtService := service.NewJWTService()
-	transactionRepository := db_transaction.NewRepository(db)
+	dbTransactionRepository := db_transaction.NewRepository(db)
 
-	userRepository := repository.NewUserRepository(transactionRepository)
-	tableRepository := repository.NewTableRepository(transactionRepository)
-	categoryRepository := repository.NewCategoryRepository(transactionRepository)
-	menuRepository := repository.NewMenuRepository(transactionRepository)
+	userRepository := repository.NewUserRepository(dbTransactionRepository)
+	tableRepository := repository.NewTableRepository(dbTransactionRepository)
+	categoryRepository := repository.NewCategoryRepository(dbTransactionRepository)
+	menuRepository := repository.NewMenuRepository(dbTransactionRepository)
+	orderRepository := repository.NewOrderRepository(dbTransactionRepository)
+	transactionRepository := repository.NewTransactionRepository(dbTransactionRepository)
 
-	userService := service.NewUserService(userRepository, jwtService, transactionRepository)
+	userService := service.NewUserService(userRepository, jwtService, dbTransactionRepository)
 	tableService := service.NewTableService(tableRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
 	menuService := service.NewMenuService(menuRepository, categoryRepository)
+	orderService := service.NewOrderService(orderRepository, menuRepository)
+	transactionService := service.NewTransactionService(transactionRepository, userRepository, tableRepository, orderRepository, menuRepository, paymentGateway, dbTransactionRepository, orderService)
 
 	userController := controller.NewUserController(userService)
 	tableController := controller.NewTableController(tableService)
 	categoryController := controller.NewCategoryController(categoryService)
 	menuController := controller.NewMenuController(menuService)
+	transactionController := controller.NewTransactionController(transactionService)
 
 	defer config.CloseDatabaseConnection(db)
 
@@ -83,6 +91,7 @@ func main() {
 	route.TableRoute(server, tableController, jwtService)
 	route.CategoryRoute(server, categoryController, jwtService)
 	route.MenuRoute(server, menuController, jwtService)
+	route.TransactionRoute(server, transactionController, jwtService)
 
 	run(server)
 }

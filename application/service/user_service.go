@@ -3,6 +3,7 @@ package service
 import (
 	"context"
 	"errors"
+	"fp-kpl/application"
 	"fp-kpl/application/request"
 	"fp-kpl/application/response"
 	"fp-kpl/domain/user"
@@ -121,7 +122,7 @@ func (s *userService) Verify(ctx context.Context, req request.UserLogin) (respon
 
 	defer func() {
 		if r := recover(); r != nil {
-			err = RecoveredFromPanic(r)
+			err = application.RecoveredFromPanic(r)
 		}
 		validatedTransaction.CommitOrRollback(ctx, tx, err)
 	}()
