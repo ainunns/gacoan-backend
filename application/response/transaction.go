@@ -42,4 +42,9 @@ type (
 		QueueCode string                `json:"queue_code" form:"queue_code" binding:"required"`
 		Orders    []OrderForTransaction `json:"orders" form:"orders" binding:"required"`
 	}
+
+	StartCooking struct {
+		QueueCode string                `json:"queue_code" form:"queue_code" binding:"required"`
+		Orders    []OrderForTransaction `json:"orders" form:"orders" binding:"required"`
+	}
 )
