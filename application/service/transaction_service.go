@@ -130,8 +130,6 @@ func (s *transactionService) CreateTransaction(ctx context.Context, userID strin
 		})
 	}
 
-	validatedTransaction.CommitOrRollback(ctx, tx, err)
-
 	paymentURL, err := s.paymentGatewayPort.ProcessPayment(ctx, tx, createdTransaction)
 	if err != nil {
 		return response.TransactionCreate{}, err

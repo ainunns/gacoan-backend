@@ -19,8 +19,8 @@ type Order struct {
 	UpdatedAt     time.Time      `gorm:"type:timestamp with time zone;column:updated_at"`
 	DeletedAt     gorm.DeletedAt `gorm:"type:timestamp with time zone;column:deleted_at"`
 
-	Transaction *Transaction `gorm:""`
-	Menu        *Menu        `gorm:""`
+	Transaction *Transaction `gorm:"foreignKey:TransactionID"`
+	Menu        *Menu        `gorm:"foreignKey:MenuID"`
 }
 
 func OrderEntityToSchema(entity order.Order) Order {

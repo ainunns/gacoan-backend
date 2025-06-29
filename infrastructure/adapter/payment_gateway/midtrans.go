@@ -35,7 +35,7 @@ func (m midtransAdapter) ProcessPayment(ctx context.Context, tx interface{}, tra
 
 	transactionSchema := schema.TransactionEntityToSchema(transactionEntity)
 
-	err = m.db.WithContext(ctx).
+	err = db.WithContext(ctx).
 		Preload("User").
 		Preload("Orders").
 		Preload("Orders.Menu").
