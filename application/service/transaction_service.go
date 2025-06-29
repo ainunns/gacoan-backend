@@ -552,7 +552,7 @@ func (s *transactionService) FinishDelivering(ctx context.Context, req request.F
 		validatedTransaction.CommitOrRollback(ctx, tx, err)
 	}()
 
-	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, tx, req.QueueCode)
+	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, nil, req.QueueCode)
 	if err != nil {
 		return response.FinishDelivering{}, err
 	}
@@ -566,7 +566,7 @@ func (s *transactionService) FinishDelivering(ctx context.Context, req request.F
 		return response.FinishDelivering{}, transaction.ErrorInvalidTransaction
 	}
 
-	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusFinish(ctx, tx, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusFinish(ctx, nil, transactionSchema.ID.String())
 	if err != nil {
 		return response.FinishDelivering{}, err
 	}
