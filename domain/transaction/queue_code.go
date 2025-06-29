@@ -26,7 +26,7 @@ func NewQueueCodeFromSchema(code string, valid bool) QueueCode {
 
 func (q *QueueCode) QueueNumber() (int, error) {
 	number := strings.TrimPrefix(q.Code, "Q")
-	if number == "0000" {
+	if number == "0000" || number == "" {
 		return 0, nil
 	}
 	var queueNumber int
