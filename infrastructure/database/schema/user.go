@@ -4,9 +4,10 @@ import (
 	"fp-kpl/domain/identity"
 	"fp-kpl/domain/shared"
 	"fp-kpl/domain/user"
+	"time"
+
 	"github.com/google/uuid"
 	"gorm.io/gorm"
-	"time"
 )
 
 type User struct {
@@ -16,8 +17,6 @@ type User struct {
 	PhoneNumber string         `gorm:"type:varchar(20);index;column:phone_number"`
 	Password    string         `gorm:"type:varchar(255);not null;column:password"`
 	Role        string         `gorm:"type:varchar(50);not null;default:'user';column:role"`
-	ImageUrl    string         `gorm:"type:varchar(255);column:image_url"`
-	IsVerified  bool           `gorm:"default:false;column:is_verified"`
 	CreatedAt   time.Time      `gorm:"type:timestamp with time zone;column:created_at"`
 	UpdatedAt   time.Time      `gorm:"type:timestamp with time zone;column:updated_at"`
 	DeletedAt   gorm.DeletedAt `gorm:"type:timestamp with time zone;column:deleted_at"`

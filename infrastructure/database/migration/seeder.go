@@ -7,6 +7,9 @@ import (
 )
 
 func Seeder(db *gorm.DB) error {
+	if err := seed.User(db); err != nil {
+		return err
+	}
 	if err := seed.Table(db); err != nil {
 		return err
 	}
