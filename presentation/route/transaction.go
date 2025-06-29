@@ -11,5 +11,6 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 	transactionGroup := route.Group("/api/transaction")
 	{
 		transactionGroup.POST("/", middleware.Authenticate(jwtService), transactionController.CreateTransaction)
+		transactionGroup.POST("/hook", transactionController.HookTransaction)
 	}
 }
