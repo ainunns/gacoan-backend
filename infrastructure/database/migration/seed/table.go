@@ -3,7 +3,9 @@ package seed
 import (
 	"fp-kpl/infrastructure/database/migration/data"
 	"fp-kpl/infrastructure/database/schema"
+
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func Table(db *gorm.DB) error {
@@ -12,5 +14,8 @@ func Table(db *gorm.DB) error {
 		return db.AutoMigrate(&schema.Table{})
 	}
 
-	return db.CreateInBatches(data.Tables, 100).Error
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "table_number"}},
+		DoNothing: true,
+	}).CreateInBatches(data.Tables, 100).Error
 }
