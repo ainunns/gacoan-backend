@@ -8,8 +8,10 @@ import (
 	"fp-kpl/infrastructure/database/db_transaction"
 	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/infrastructure/database/validation"
-	"gorm.io/gorm"
+	"fp-kpl/platform/pagination"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 type transactionRepository struct {
@@ -42,10 +44,10 @@ func (r *transactionRepository) CreateTransaction(ctx context.Context, tx interf
 	return transactionEntity, nil
 }
 
-func (r *transactionRepository) GetAllTransactions(ctx context.Context, tx interface{}) ([]transaction.Transaction, error) {
+func (r *transactionRepository) GetAllTransactionsWithPagination(ctx context.Context, tx interface{}, userID string, req pagination.Request) (pagination.ResponseWithData, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
-		return nil, err
+		return pagination.ResponseWithData{}, err
 	}
 
 	db := validatedTransaction.DB()
@@ -54,17 +56,40 @@ func (r *transactionRepository) GetAllTransactions(ctx context.Context, tx inter
 	}
 
 	var transactionSchemas []schema.Transaction
-	query := db.WithContext(ctx).Model(&transactionSchemas)
-	if err = query.Find(&transactionSchemas).Error; err != nil {
-		return nil, err
+	var count int64
+
+	req.Default()
+
+	query := db.WithContext(ctx).Model(&transactionSchemas).Where("user_id = ?", userID)
+
+	if req.Search != "" {
+		query = query.Where("queue_code LIKE ?", "%"+req.Search+"%")
 	}
 
-	transactionEntities := make([]transaction.Transaction, len(transactionSchemas))
+	if err = query.Count(&count).Error; err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	if err = query.Scopes(pagination.Paginate(req)).Find(&transactionSchemas).Error; err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	totalPage := pagination.TotalPage(count, int64(req.PerPage))
+
+	transactionEntities := make([]any, len(transactionSchemas))
 	for i, transactionSchema := range transactionSchemas {
 		transactionEntities[i] = schema.TransactionSchemaToEntity(transactionSchema)
 	}
 
-	return transactionEntities, nil
+	return pagination.ResponseWithData{
+		Data: transactionEntities,
+		Response: pagination.Response{
+			Page:    req.Page,
+			PerPage: req.PerPage,
+			Count:   count,
+			MaxPage: totalPage,
+		},
+	}, nil
 }
 
 func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Transaction, error) {

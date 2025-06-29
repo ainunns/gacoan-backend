@@ -18,6 +18,7 @@ type Transaction struct {
 	PaymentCode   string          `gorm:"type:varchar(255);not null;column:payment_code"`
 	PaymentStatus string          `gorm:"type:varchar(255);not null;column:payment_status"`
 	OrderStatus   string          `gorm:"type:varchar(255);not null;column:order_status"`
+	CookedAt      *time.Time      `gorm:"type:timestamp with time zone;column:cooked_at"`
 	ServedAt      *time.Time      `gorm:"type:timestamp with time zone;column:served_at"`
 	QueueCode     *string         `gorm:"type:varchar(255);column:queue_code"`
 	TotalPrice    decimal.Decimal `gorm:"type:decimal(12,2);not null;default:0;column:total_price"`
@@ -45,6 +46,7 @@ func TransactionEntityToSchema(entity transaction.Transaction) Transaction {
 		PaymentStatus: entity.Payment.Status,
 		OrderStatus:   entity.OrderStatus.Status,
 		ServedAt:      entity.ServedAt,
+		CookedAt:      entity.CookedAt,
 		QueueCode:     &entity.QueueCode.Code,
 		TotalPrice:    entity.TotalPrice.Price,
 		CreatedAt:     entity.CreatedAt,
@@ -73,6 +75,7 @@ func TransactionSchemaToEntity(schema Transaction) transaction.Transaction {
 		Payment:     transaction.NewPaymentFromSchema(schema.PaymentCode, schema.PaymentStatus),
 		OrderStatus: transaction.NewOrderStatusFromSchema(schema.OrderStatus),
 		ServedAt:    schema.ServedAt,
+		CookedAt:    schema.CookedAt,
 		QueueCode:   queueCode,
 		TotalPrice:  shared.NewPriceFromSchema(schema.TotalPrice),
 		Timestamp: shared.Timestamp{
