@@ -1,6 +1,8 @@
 package transaction
 
-import "context"
+import (
+	"context"
+)
 
 type Repository interface {
 	CreateTransaction(ctx context.Context, tx interface{}, transactionEntity Transaction) (Transaction, error)
