@@ -18,16 +18,16 @@ import (
 )
 
 // Mock repositories for menu availability tests
-type MockCategoryRepository struct {
+type MockCategoryRepositoryForStateMenu struct {
 	mock.Mock
 }
 
-func (m *MockCategoryRepository) GetAllCategories(ctx context.Context, tx interface{}) ([]category.Category, error) {
+func (m *MockCategoryRepositoryForStateMenu) GetAllCategories(ctx context.Context, tx interface{}) ([]category.Category, error) {
 	args := m.Called(ctx, tx)
 	return args.Get(0).([]category.Category), args.Error(1)
 }
 
-func (m *MockCategoryRepository) GetCategoryByID(ctx context.Context, tx interface{}, id string) (category.Category, error) {
+func (m *MockCategoryRepositoryForStateMenu) GetCategoryByID(ctx context.Context, tx interface{}, id string) (category.Category, error) {
 	args := m.Called(ctx, tx, id)
 	return args.Get(0).(category.Category), args.Error(1)
 }
@@ -59,7 +59,7 @@ func (m *MockMenuRepositoryForAvailability) UpdateMenuAvailability(ctx context.C
 func TestUpdateMenuAvailability_Success_AvailableToUnavailable(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -115,7 +115,7 @@ func TestUpdateMenuAvailability_Success_AvailableToUnavailable(t *testing.T) {
 func TestUpdateMenuAvailability_Success_UnavailableToAvailable(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -171,7 +171,7 @@ func TestUpdateMenuAvailability_Success_UnavailableToAvailable(t *testing.T) {
 func TestUpdateMenuAvailability_Success_SameState(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -227,7 +227,7 @@ func TestUpdateMenuAvailability_Success_SameState(t *testing.T) {
 func TestUpdateMenuAvailability_MenuNotFound(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -252,7 +252,7 @@ func TestUpdateMenuAvailability_MenuNotFound(t *testing.T) {
 func TestUpdateMenuAvailability_CategoryNotFound(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -295,7 +295,7 @@ func TestUpdateMenuAvailability_CategoryNotFound(t *testing.T) {
 func TestUpdateMenuAvailability_RepositoryError(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -320,7 +320,7 @@ func TestUpdateMenuAvailability_RepositoryError(t *testing.T) {
 func TestUpdateMenuAvailability_WithDecimalPrice(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
@@ -376,7 +376,7 @@ func TestUpdateMenuAvailability_WithDecimalPrice(t *testing.T) {
 func TestUpdateMenuAvailability_StateTransitionValidation(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForAvailability)
-	mockCategoryRepo := new(MockCategoryRepository)
+	mockCategoryRepo := new(MockCategoryRepositoryForStateMenu)
 
 	menuService := service.NewMenuService(mockMenuRepo, mockCategoryRepo)
 
