@@ -17,48 +17,48 @@ import (
 )
 
 // Mock repositories
-type MockOrderRepository struct {
+type MockOrderRepositoryForCalculatePrice struct {
 	mock.Mock
 }
 
-func (m *MockOrderRepository) CreateOrder(ctx context.Context, tx interface{}, orderEntity order.Order) (order.Order, error) {
+func (m *MockOrderRepositoryForCalculatePrice) CreateOrder(ctx context.Context, tx interface{}, orderEntity order.Order) (order.Order, error) {
 	args := m.Called(ctx, tx, orderEntity)
 	return args.Get(0).(order.Order), args.Error(1)
 }
 
-func (m *MockOrderRepository) GetOrdersByTransactionID(ctx context.Context, tx interface{}, transactionID string) ([]order.Order, error) {
+func (m *MockOrderRepositoryForCalculatePrice) GetOrdersByTransactionID(ctx context.Context, tx interface{}, transactionID string) ([]order.Order, error) {
 	args := m.Called(ctx, tx, transactionID)
 	return args.Get(0).([]order.Order), args.Error(1)
 }
 
-type MockMenuRepository struct {
+type MockMenuRepositoryForCalculatePrice struct {
 	mock.Mock
 }
 
-func (m *MockMenuRepository) GetAllMenus(ctx context.Context, tx interface{}) ([]menu.Menu, error) {
+func (m *MockMenuRepositoryForCalculatePrice) GetAllMenus(ctx context.Context, tx interface{}) ([]menu.Menu, error) {
 	args := m.Called(ctx, tx)
 	return args.Get(0).([]menu.Menu), args.Error(1)
 }
 
-func (m *MockMenuRepository) GetMenuByID(ctx context.Context, tx interface{}, id string) (menu.Menu, error) {
+func (m *MockMenuRepositoryForCalculatePrice) GetMenuByID(ctx context.Context, tx interface{}, id string) (menu.Menu, error) {
 	args := m.Called(ctx, tx, id)
 	return args.Get(0).(menu.Menu), args.Error(1)
 }
 
-func (m *MockMenuRepository) GetMenusByCategoryID(ctx context.Context, tx interface{}, categoryID string) ([]menu.Menu, error) {
+func (m *MockMenuRepositoryForCalculatePrice) GetMenusByCategoryID(ctx context.Context, tx interface{}, categoryID string) ([]menu.Menu, error) {
 	args := m.Called(ctx, tx, categoryID)
 	return args.Get(0).([]menu.Menu), args.Error(1)
 }
 
-func (m *MockMenuRepository) UpdateMenuAvailability(ctx context.Context, tx interface{}, id string, isAvailable bool) (menu.Menu, error) {
+func (m *MockMenuRepositoryForCalculatePrice) UpdateMenuAvailability(ctx context.Context, tx interface{}, id string, isAvailable bool) (menu.Menu, error) {
 	args := m.Called(ctx, tx, id, isAvailable)
 	return args.Get(0).(menu.Menu), args.Error(1)
 }
 
 func TestCalculateTotalPrice_Success(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -106,8 +106,8 @@ func TestCalculateTotalPrice_Success(t *testing.T) {
 
 func TestCalculateTotalPrice_SingleItem(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -141,8 +141,8 @@ func TestCalculateTotalPrice_SingleItem(t *testing.T) {
 
 func TestCalculateTotalPrice_ZeroQuantity(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -175,8 +175,8 @@ func TestCalculateTotalPrice_ZeroQuantity(t *testing.T) {
 
 func TestCalculateTotalPrice_NegativeQuantity(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -209,8 +209,8 @@ func TestCalculateTotalPrice_NegativeQuantity(t *testing.T) {
 
 func TestCalculateTotalPrice_MenuNotFound(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -236,8 +236,8 @@ func TestCalculateTotalPrice_MenuNotFound(t *testing.T) {
 
 func TestCalculateTotalPrice_EmptyOrders(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -260,8 +260,8 @@ func TestCalculateTotalPrice_EmptyOrders(t *testing.T) {
 
 func TestCalculateTotalPrice_DecimalPrices(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -307,8 +307,8 @@ func TestCalculateTotalPrice_DecimalPrices(t *testing.T) {
 
 func TestCalculateTotalPrice_LargeQuantities(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 
@@ -342,8 +342,8 @@ func TestCalculateTotalPrice_LargeQuantities(t *testing.T) {
 
 func TestCalculateTotalPrice_MixedValidAndInvalid(t *testing.T) {
 	// Arrange
-	mockMenuRepo := new(MockMenuRepository)
-	mockOrderRepo := new(MockOrderRepository)
+	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
+	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
 
 	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
 

@@ -173,16 +173,16 @@ func (m *MockMenuRepositoryForTransaction) UpdateMenuAvailability(ctx context.Co
 	return args.Get(0).(menu.Menu), args.Error(1)
 }
 
-type MockPaymentGatewayPort struct {
+type MockPaymentGatewayPortForGetByID struct {
 	mock.Mock
 }
 
-func (m *MockPaymentGatewayPort) ProcessPayment(ctx context.Context, tx interface{}, transactionEntity transaction.Transaction) (port.ProcessPaymentResponse, error) {
+func (m *MockPaymentGatewayPortForGetByID) ProcessPayment(ctx context.Context, tx interface{}, transactionEntity transaction.Transaction) (port.ProcessPaymentResponse, error) {
 	args := m.Called(ctx, tx, transactionEntity)
 	return args.Get(0).(port.ProcessPaymentResponse), args.Error(1)
 }
 
-func (m *MockPaymentGatewayPort) HookPayment(ctx context.Context, tx interface{}, transactionID uuid.UUID, datas map[string]interface{}) error {
+func (m *MockPaymentGatewayPortForGetByID) HookPayment(ctx context.Context, tx interface{}, transactionID uuid.UUID, datas map[string]interface{}) error {
 	args := m.Called(ctx, tx, transactionID, datas)
 	return args.Error(0)
 }
@@ -194,7 +194,7 @@ func TestGetTransactionByID_Success(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForTransaction)
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
-	mockPaymentGateway := new(MockPaymentGatewayPort)
+	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -294,7 +294,7 @@ func TestGetTransactionByID_Success_NotDelayed(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForTransaction)
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
-	mockPaymentGateway := new(MockPaymentGatewayPort)
+	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -379,7 +379,7 @@ func TestGetTransactionByID_TransactionNotFound(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForTransaction)
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
-	mockPaymentGateway := new(MockPaymentGatewayPort)
+	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -416,7 +416,7 @@ func TestGetTransactionByID_InvalidTransactionType(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForTransaction)
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
-	mockPaymentGateway := new(MockPaymentGatewayPort)
+	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -454,7 +454,7 @@ func TestGetTransactionByID_EmptyOrders(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForTransaction)
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
-	mockPaymentGateway := new(MockPaymentGatewayPort)
+	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -520,7 +520,7 @@ func TestGetTransactionByID_WithDecimalPrices(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForTransaction)
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
-	mockPaymentGateway := new(MockPaymentGatewayPort)
+	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
