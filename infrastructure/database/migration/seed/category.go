@@ -5,6 +5,7 @@ import (
 	"fp-kpl/infrastructure/database/schema"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func Category(db *gorm.DB) error {
@@ -13,5 +14,8 @@ func Category(db *gorm.DB) error {
 		return db.AutoMigrate(&schema.Category{})
 	}
 
-	return db.CreateInBatches(data.Categories, 100).Error
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "name"}},
+		DoNothing: true,
+	}).CreateInBatches(data.Categories, 100).Error
 }

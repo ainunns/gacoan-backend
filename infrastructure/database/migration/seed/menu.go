@@ -5,6 +5,7 @@ import (
 	"fp-kpl/infrastructure/database/schema"
 
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 func Menu(db *gorm.DB) error {
@@ -15,5 +16,8 @@ func Menu(db *gorm.DB) error {
 
 	menus := data.GetMenus(db)
 
-	return db.CreateInBatches(menus, 100).Error
+	return db.Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "name"}},
+		DoNothing: true,
+	}).CreateInBatches(menus, 100).Error
 }
