@@ -26,9 +26,12 @@ type (
 		HookTransaction(ctx context.Context, datas map[string]interface{}) error
 		GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error)
 		GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error)
+		GetAllReadyToServeTransactionList(ctx context.Context, req pagination.Request) (pagination.ResponseWithData, error)
 		GetNextOrder(ctx context.Context, userID string) (response.NextOrder, error)
 		StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error)
 		FinishCooking(ctx context.Context, req request.FinishCooking) (response.FinishCooking, error)
+		StartDelivering(ctx context.Context, req request.StartDelivering) (response.StartDelivering, error)
+		FinishDelivering(ctx context.Context, req request.FinishDelivering) (response.FinishDelivering, error)
 	}
 
 	transactionService struct {
@@ -308,6 +311,48 @@ func (s *transactionService) GetTransactionByID(ctx context.Context, userID stri
 	}, nil
 }
 
+func (s *transactionService) GetAllReadyToServeTransactionList(ctx context.Context, req pagination.Request) (pagination.ResponseWithData, error) {
+	retrievedData, err := s.transactionRepository.GetAllReadyToServeTransactionList(ctx, nil, req)
+	if err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	data := make([]any, 0, len(retrievedData.Data))
+	for _, retrievedTransaction := range retrievedData.Data {
+		transactionSchema, ok := retrievedTransaction.(schema.Transaction)
+		if !ok {
+			return pagination.ResponseWithData{}, transaction.ErrorInvalidTransaction
+		}
+
+		var orderResponses []response.OrderForWaiter
+		for _, orderSchema := range transactionSchema.Orders {
+			orderResponses = append(orderResponses, response.OrderForWaiter{
+				Menu: response.MenuForWaiter{
+					ID:   orderSchema.Menu.ID.String(),
+					Name: orderSchema.Menu.Name,
+				},
+				Quantity: orderSchema.Quantity,
+			})
+		}
+
+		tableResponse := response.TableForWaiter{
+			ID:          transactionSchema.Table.ID.String(),
+			TableNumber: transactionSchema.Table.TableNumber,
+		}
+
+		data = append(data, response.TransactionForWaiter{
+			QueueCode: *transactionSchema.QueueCode,
+			Orders:    orderResponses,
+			Table:     tableResponse,
+		})
+	}
+
+	return pagination.ResponseWithData{
+		Data:     data,
+		Response: retrievedData.Response,
+	}, nil
+}
+
 func (s *transactionService) calculateMaxCookingTimeFromSchema(orders []schema.Order) time.Duration {
 	maxCookingTime := time.Duration(0)
 
@@ -354,7 +399,24 @@ func (s *transactionService) GetNextOrder(ctx context.Context, userID string) (r
 }
 
 func (s *transactionService) StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error) {
-	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, nil, req.QueueCode)
+	validatedTransaction, err := validation.ValidateTransaction(s.transaction)
+	if err != nil {
+		return response.StartCooking{}, err
+	}
+
+	tx, err := validatedTransaction.Begin(ctx)
+	if err != nil {
+		return response.StartCooking{}, err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = application.RecoveredFromPanic(r)
+		}
+		validatedTransaction.CommitOrRollback(ctx, tx, err)
+	}()
+
+	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, tx, req.QueueCode)
 	if err != nil {
 		return response.StartCooking{}, err
 	}
@@ -368,7 +430,12 @@ func (s *transactionService) StartCooking(ctx context.Context, req request.Start
 		return response.StartCooking{}, transaction.ErrorInvalidTransaction
 	}
 
-	_, err = s.transactionRepository.UpdateTransactionCookingStatusStart(ctx, nil, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateTransactionCookingStatusStart(ctx, tx, transactionSchema.ID.String())
+	if err != nil {
+		return response.StartCooking{}, err
+	}
+
+	_, err = s.transactionRepository.UpdateCookedAt(ctx, tx, transactionSchema.ID.String())
 	if err != nil {
 		return response.StartCooking{}, err
 	}
@@ -427,4 +494,87 @@ func (s *transactionService) FinishCooking(ctx context.Context, req request.Fini
 		QueueCode: *transactionSchema.QueueCode,
 		Orders:    orderResponses,
 	}, nil
+}
+
+func (s *transactionService) StartDelivering(ctx context.Context, req request.StartDelivering) (response.StartDelivering, error) {
+	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, nil, req.QueueCode)
+	if err != nil {
+		return response.StartDelivering{}, err
+	}
+
+	if retrievedData == nil {
+		return response.StartDelivering{}, nil
+	}
+
+	transactionSchema, ok := retrievedData.(schema.Transaction)
+	if !ok {
+		return response.StartDelivering{}, transaction.ErrorInvalidTransaction
+	}
+
+	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusStart(ctx, nil, transactionSchema.ID.String())
+	if err != nil {
+		return response.StartDelivering{}, err
+	}
+
+	var orderResponses []response.OrderForTransaction
+	for _, orderSchema := range transactionSchema.Orders {
+		orderResponses = append(orderResponses, response.OrderForTransaction{
+			Menu: response.MenuForTransaction{
+				ID:    orderSchema.Menu.ID.String(),
+				Name:  orderSchema.Menu.Name,
+				Price: orderSchema.Menu.Price.String(),
+			},
+			Quantity: orderSchema.Quantity,
+		})
+	}
+
+	return response.StartDelivering{
+		QueueCode: *transactionSchema.QueueCode,
+		Orders:    orderResponses,
+	}, nil
+}
+
+func (s *transactionService) FinishDelivering(ctx context.Context, req request.FinishDelivering) (response.FinishDelivering, error) {
+	validatedTransaction, err := validation.ValidateTransaction(s.transaction)
+	if err != nil {
+		return response.FinishDelivering{}, err
+	}
+
+	tx, err := validatedTransaction.Begin(ctx)
+	if err != nil {
+		return response.FinishDelivering{}, err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = application.RecoveredFromPanic(r)
+		}
+		validatedTransaction.CommitOrRollback(ctx, tx, err)
+	}()
+
+	retrievedData, err := s.transactionRepository.GetTransactionByQueueCode(ctx, nil, req.QueueCode)
+	if err != nil {
+		return response.FinishDelivering{}, err
+	}
+
+	if retrievedData == nil {
+		return response.FinishDelivering{}, nil
+	}
+
+	transactionSchema, ok := retrievedData.(schema.Transaction)
+	if !ok {
+		return response.FinishDelivering{}, transaction.ErrorInvalidTransaction
+	}
+
+	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusFinish(ctx, nil, transactionSchema.ID.String())
+	if err != nil {
+		return response.FinishDelivering{}, err
+	}
+
+	_, err = s.transactionRepository.UpdateServedAt(ctx, tx, transactionSchema.ID.String())
+	if err != nil {
+		return response.FinishDelivering{}, err
+	}
+
+	return response.FinishDelivering{}, nil
 }

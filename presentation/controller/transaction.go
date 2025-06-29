@@ -16,10 +16,13 @@ type (
 		CreateTransaction(ctx *gin.Context)
 		HookTransaction(ctx *gin.Context)
 		GetAllTransactionsWithPagination(ctx *gin.Context)
+		GetAllReadyToServeTransactionList(ctx *gin.Context)
 		GetTransactionByID(ctx *gin.Context)
 		GetNextOrder(ctx *gin.Context)
 		StartCooking(ctx *gin.Context)
 		FinishCooking(ctx *gin.Context)
+		StartDelivering(ctx *gin.Context)
+		FinishDelivering(ctx *gin.Context)
 	}
 
 	transactionController struct {
@@ -93,6 +96,26 @@ func (t transactionController) GetAllTransactionsWithPagination(ctx *gin.Context
 	ctx.JSON(http.StatusOK, res)
 }
 
+func (t transactionController) GetAllReadyToServeTransactionList(ctx *gin.Context) {
+	var req pagination.Request
+
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromQuery, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	result, err := t.transactionService.GetAllReadyToServeTransactionList(ctx.Request.Context(), req)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetAllReadyToServeTransactions, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessGetAllReadyToServeTransactions, result.Data, result.Response)
+	ctx.JSON(http.StatusOK, res)
+}
+
 func (t transactionController) GetTransactionByID(ctx *gin.Context) {
 	id := ctx.Param("id")
 	userID := ctx.MustGet("user_id").(string)
@@ -157,5 +180,43 @@ func (t transactionController) FinishCooking(ctx *gin.Context) {
 	}
 
 	res := presentation.BuildResponseSuccess(message.SuccessFinishCooking, result)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (t transactionController) StartDelivering(ctx *gin.Context) {
+	var req request.StartDelivering
+	if err := ctx.ShouldBind(&req); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromBody, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	result, err := t.transactionService.StartDelivering(ctx.Request.Context(), req)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedStartDelivering, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessStartDelivering, result)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (t transactionController) FinishDelivering(ctx *gin.Context) {
+	var req request.FinishDelivering
+	if err := ctx.ShouldBind(&req); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromBody, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	result, err := t.transactionService.FinishDelivering(ctx.Request.Context(), req)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedFinishDelivering, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessFinishDelivering, result)
 	ctx.JSON(http.StatusOK, res)
 }
