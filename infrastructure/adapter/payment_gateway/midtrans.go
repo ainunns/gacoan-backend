@@ -28,10 +28,10 @@ func NewMidtransAdapter(db *gorm.DB, transactionDomainService transaction.Servic
 	}
 }
 
-func (m midtransAdapter) ProcessPayment(ctx context.Context, tx interface{}, transactionEntity transaction.Transaction) (string, error) {
+func (m midtransAdapter) ProcessPayment(ctx context.Context, tx interface{}, transactionEntity transaction.Transaction) (port.ProcessPaymentResponse, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
-		return "", err
+		return port.ProcessPaymentResponse{}, err
 	}
 
 	db := validatedTransaction.DB()
@@ -47,7 +47,7 @@ func (m midtransAdapter) ProcessPayment(ctx context.Context, tx interface{}, tra
 		Preload("Orders.Menu").
 		First(&transactionSchema, "id = ?", transactionSchema.ID.String()).Error
 	if err != nil {
-		return "", err
+		return port.ProcessPaymentResponse{}, err
 	}
 
 	var s = snap.Client{}
@@ -82,9 +82,12 @@ func (m midtransAdapter) ProcessPayment(ctx context.Context, tx interface{}, tra
 
 	snapResp, snapErr := s.CreateTransaction(req)
 	if snapErr != nil {
-		return "", snapErr.RawError
+		return port.ProcessPaymentResponse{}, snapErr.RawError
 	}
-	return snapResp.RedirectURL, nil
+	return port.ProcessPaymentResponse{
+		Token:       snapResp.Token,
+		PaymentLink: snapResp.RedirectURL,
+	}, nil
 }
 
 func (m midtransAdapter) HookPayment(ctx context.Context, tx interface{}, transactionId uuid.UUID, datas map[string]interface{}) error {

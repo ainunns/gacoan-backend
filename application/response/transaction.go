@@ -6,6 +6,7 @@ type (
 	TransactionCreate struct {
 		TransactionID string                      `json:"transaction_id" form:"transaction_id" binding:"required"`
 		TotalPrice    string                      `json:"total_price" form:"total_price" binding:"required"`
+		Token         string                      `json:"token" form:"token" binding:"required"`
 		PaymentLink   string                      `json:"payment_link" form:"payment_link" binding:"required"`
 		Orders        []OrderForTransactionCreate `json:"orders" form:"orders" binding:"required"`
 	}

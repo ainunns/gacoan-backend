@@ -145,7 +145,7 @@ func (s *transactionService) CreateTransaction(ctx context.Context, userID strin
 		})
 	}
 
-	paymentURL, err := s.paymentGatewayPort.ProcessPayment(ctx, tx, createdTransaction)
+	payment, err := s.paymentGatewayPort.ProcessPayment(ctx, tx, createdTransaction)
 	if err != nil {
 		return response.TransactionCreate{}, err
 	}
@@ -153,7 +153,8 @@ func (s *transactionService) CreateTransaction(ctx context.Context, userID strin
 	return response.TransactionCreate{
 		TransactionID: createdTransaction.ID.String(),
 		TotalPrice:    totalPrice.Price.String(),
-		PaymentLink:   paymentURL,
+		Token:         payment.Token,
+		PaymentLink:   payment.PaymentLink,
 		Orders:        createdOrders,
 	}, nil
 }
