@@ -3,6 +3,7 @@ package controller
 import (
 	"fp-kpl/application/request"
 	"fp-kpl/application/service"
+	"fp-kpl/platform/pagination"
 	"fp-kpl/presentation"
 	"fp-kpl/presentation/message"
 	"net/http"
@@ -14,6 +15,7 @@ type (
 	TransactionController interface {
 		CreateTransaction(ctx *gin.Context)
 		HookTransaction(ctx *gin.Context)
+		GetAllTransactionsWithPagination(ctx *gin.Context)
 	}
 
 	transactionController struct {
@@ -63,5 +65,26 @@ func (t transactionController) HookTransaction(ctx *gin.Context) {
 	}
 
 	res := presentation.BuildResponseSuccess(message.SuccessHookTransaction, nil)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (t transactionController) GetAllTransactionsWithPagination(ctx *gin.Context) {
+	var req pagination.Request
+
+	if err := ctx.ShouldBindQuery(&req); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromQuery, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	userID := ctx.MustGet("user_id").(string)
+	result, err := t.transactionService.GetAllTransactionsWithPagination(ctx.Request.Context(), userID, req)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetAllTransactions, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessGetAllTransactions, result.Data, result.Response)
 	ctx.JSON(http.StatusOK, res)
 }

@@ -12,6 +12,7 @@ type Transaction struct {
 	TableID     identity.ID
 	Payment     Payment
 	OrderStatus OrderStatus
+	CookedAt    *time.Time
 	ServedAt    *time.Time
 	QueueCode   QueueCode
 	TotalPrice  shared.Price

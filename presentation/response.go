@@ -10,12 +10,17 @@ type Response struct {
 
 type EmptyObj struct{}
 
-func BuildResponseSuccess(message string, data any) Response {
+func BuildResponseSuccess(message string, data any, meta ...any) Response {
 	res := Response{
 		Status:  true,
 		Message: message,
 		Data:    data,
 	}
+
+	if len(meta) > 0 {
+		res.Meta = meta[0]
+	}
+
 	return res
 }
 
