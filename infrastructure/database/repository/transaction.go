@@ -97,10 +97,10 @@ func (r *transactionRepository) GetAllTransactionsWithPagination(ctx context.Con
 	}, nil
 }
 
-func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (transaction.Transaction, error) {
+func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
-		return transaction.Transaction{}, err
+		return nil, err
 	}
 
 	db := validatedTransaction.DB()
@@ -116,11 +116,10 @@ func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx inter
 		Preload("Orders").
 		Preload("Orders.Menu").
 		Take(&transactionSchema).Error; err != nil {
-		return transaction.Transaction{}, err
+		return nil, err
 	}
 
-	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
-	return transactionEntity, nil
+	return transactionSchema, nil
 }
 
 func (r *transactionRepository) GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error) {
