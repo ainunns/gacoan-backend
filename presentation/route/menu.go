@@ -17,8 +17,8 @@ func MenuRoute(route *gin.Engine, menuController controller.MenuController, jwtS
 		menuGroup.PATCH("/:id/availability",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleKitchen},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleKitchen},
+				{Name: user.RoleSuperAdmin},
 			}),
 			menuController.UpdateMenuAvailability)
 	}
