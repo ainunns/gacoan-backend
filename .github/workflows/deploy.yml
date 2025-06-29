@@ -17,6 +17,7 @@ jobs:
           password: ${{ secrets.PASSWORD }}
           port: ${{ secrets.PORT }}
           script: |
+            cd /fp-kpl-be
             git pull origin main
             go build -o main main.go
             sudo systemctl restart goweb
