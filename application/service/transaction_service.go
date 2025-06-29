@@ -25,6 +25,7 @@ type (
 		CreateTransaction(ctx context.Context, userID string, req request.TransactionCreate) (response.TransactionCreate, error)
 		HookTransaction(ctx context.Context, datas map[string]interface{}) error
 		GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error)
+		GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error)
 	}
 
 	transactionService struct {
@@ -249,6 +250,74 @@ func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Contex
 	}, nil
 }
 
+func (s *transactionService) GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error) {
+	retrievedTransaction, err := s.transactionRepository.GetTransactionByID(ctx, nil, userID, id)
+	if err != nil {
+		return response.Transaction{}, err
+	}
+
+	// Get orders for this transaction
+	retrievedOrders, err := s.orderRepository.GetOrdersByTransactionID(ctx, nil, retrievedTransaction.ID.String())
+	if err != nil {
+		return response.Transaction{}, err
+	}
+
+	var orderResponses []response.OrderForTransaction
+	for _, orderItem := range retrievedOrders {
+		menuEntity, err := s.menuRepository.GetMenuByID(ctx, nil, orderItem.MenuID.String())
+		if err != nil {
+			return response.Transaction{}, err
+		}
+
+		orderResponses = append(orderResponses, response.OrderForTransaction{
+			Menu: response.MenuForTransaction{
+				ID:    menuEntity.ID.String(),
+				Name:  menuEntity.Name,
+				Price: menuEntity.Price.Price.String(),
+			},
+			Quantity: orderItem.Quantity,
+		})
+	}
+
+	// Calculate max cooking time
+	maxCookingTime, err := s.calculateMaxCookingTimeFromOrders(ctx, retrievedOrders)
+	if err != nil {
+		return response.Transaction{}, err
+	}
+
+	// Get table information
+	retrievedTable, err := s.tableRepository.GetTableByID(ctx, nil, retrievedTransaction.TableID.String())
+	if err != nil {
+		return response.Transaction{}, err
+	}
+
+	now := time.Now()
+	isDelayed := false
+
+	if retrievedTransaction.CookedAt != nil {
+		expectedFinishTime := retrievedTransaction.CookedAt.Add(maxCookingTime)
+		if retrievedTransaction.ServedAt != nil {
+			isDelayed = retrievedTransaction.ServedAt.After(expectedFinishTime)
+		} else {
+			isDelayed = now.After(expectedFinishTime)
+		}
+	}
+
+	return response.Transaction{
+		ID:           retrievedTransaction.ID.String(),
+		QueueCode:    retrievedTransaction.QueueCode.Code,
+		EstimateTime: maxCookingTime.String(),
+		Orders:       orderResponses,
+		OrderStatus:  retrievedTransaction.OrderStatus.Status,
+		TotalPrice:   retrievedTransaction.TotalPrice.Price,
+		Table: response.Table{
+			ID:          retrievedTable.ID.String(),
+			TableNumber: retrievedTable.TableNumber,
+		},
+		IsDelayed: isDelayed,
+	}, nil
+}
+
 func (s *transactionService) calculateMaxCookingTimeFromSchema(orders []schema.Order) time.Duration {
 	maxCookingTime := time.Duration(0)
 
@@ -259,4 +328,21 @@ func (s *transactionService) calculateMaxCookingTimeFromSchema(orders []schema.O
 	}
 
 	return maxCookingTime
+}
+
+func (s *transactionService) calculateMaxCookingTimeFromOrders(ctx context.Context, orders []order.Order) (time.Duration, error) {
+	maxCookingTime := time.Duration(0)
+
+	for _, orderItem := range orders {
+		retrievedMenu, err := s.menuRepository.GetMenuByID(ctx, nil, orderItem.MenuID.String())
+		if err != nil {
+			return 0, err
+		}
+
+		if retrievedMenu.CookingTime > maxCookingTime {
+			maxCookingTime = retrievedMenu.CookingTime
+		}
+	}
+
+	return maxCookingTime, nil
 }
