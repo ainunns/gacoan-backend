@@ -37,4 +37,9 @@ type (
 		Menu     MenuForTransaction `json:"menu" form:"menu" binding:"required"`
 		Quantity int                `json:"quantity" form:"quantity" binding:"required"`
 	}
+
+	NextOrder struct {
+		QueueCode string                `json:"queue_code" form:"queue_code" binding:"required"`
+		Orders    []OrderForTransaction `json:"orders" form:"orders" binding:"required"`
+	}
 )
