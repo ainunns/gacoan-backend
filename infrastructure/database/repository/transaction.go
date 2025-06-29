@@ -97,6 +97,62 @@ func (r *transactionRepository) GetAllTransactionsWithPagination(ctx context.Con
 	}, nil
 }
 
+func (r *transactionRepository) GetAllReadyToServeTransactionList(ctx context.Context, tx interface{}, req pagination.Request) (pagination.ResponseWithData, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchemas []schema.Transaction
+	var count int64
+
+	req.Default()
+
+	query := db.WithContext(ctx).Model(&transactionSchemas).
+		Where("payment_status IN ?", []string{transaction.PaymentStatusSettlement, transaction.PaymentStatusCapture}).
+		Where("served_at IS NULL").
+		Where("order_status = ?", transaction.OrderStatusReadyToServe)
+
+	if req.Search != "" {
+		query = query.Where("queue_code LIKE ?", "%"+req.Search+"%")
+	}
+
+	if err = query.Count(&count).Error; err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	if err = query.Scopes(pagination.Paginate(req)).
+		Preload("Table").
+		Preload("Orders").
+		Preload("Orders.Menu").
+		Order("created_at DESC").
+		Find(&transactionSchemas).Error; err != nil {
+		return pagination.ResponseWithData{}, err
+	}
+
+	totalPage := pagination.TotalPage(count, int64(req.PerPage))
+
+	data := make([]any, len(transactionSchemas))
+	for i, transactionSchema := range transactionSchemas {
+		data[i] = transactionSchema
+	}
+
+	return pagination.ResponseWithData{
+		Data: data,
+		Response: pagination.Response{
+			Page:    req.Page,
+			PerPage: req.PerPage,
+			Count:   count,
+			MaxPage: totalPage,
+		},
+	}, nil
+}
+
 func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
@@ -212,6 +268,27 @@ func (r *transactionRepository) GetTransactionByQueueCode(ctx context.Context, t
 	return transactionSchema, nil
 }
 
+func (r *transactionRepository) UpdateCookedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("cooked_at", time.Now()).Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
+}
+
 func (r *transactionRepository) UpdateTransactionCookingStatusStart(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
@@ -225,7 +302,7 @@ func (r *transactionRepository) UpdateTransactionCookingStatusStart(ctx context.
 
 	var transactionSchema schema.Transaction
 
-	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", "preparing").Error; err != nil {
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", transaction.OrderStatusPreparing).Error; err != nil {
 		return transaction.Transaction{}, err
 	}
 
@@ -246,7 +323,70 @@ func (r *transactionRepository) UpdateTransactionCookingStatusFinish(ctx context
 
 	var transactionSchema schema.Transaction
 
-	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", "ready_to_serve").Error; err != nil {
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", transaction.OrderStatusReadyToServe).Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
+}
+
+func (r *transactionRepository) UpdateTransactionDeliveringStatusStart(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", transaction.OrderStatusDelivering).Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
+}
+
+func (r *transactionRepository) UpdateTransactionDeliveringStatusFinish(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("order_status", transaction.OrderStatusServed).Error; err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	return transactionEntity, nil
+}
+
+func (r *transactionRepository) UpdateServedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return transaction.Transaction{}, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	if err = db.WithContext(ctx).Model(&transactionSchema).Where("id = ?", transactionID).Update("served_at", time.Now()).Error; err != nil {
 		return transaction.Transaction{}, err
 	}
 
