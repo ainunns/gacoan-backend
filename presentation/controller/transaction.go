@@ -17,6 +17,7 @@ type (
 		HookTransaction(ctx *gin.Context)
 		GetAllTransactionsWithPagination(ctx *gin.Context)
 		GetTransactionByID(ctx *gin.Context)
+		GetNextOrder(ctx *gin.Context)
 	}
 
 	transactionController struct {
@@ -102,5 +103,19 @@ func (t transactionController) GetTransactionByID(ctx *gin.Context) {
 	}
 
 	res := presentation.BuildResponseSuccess(message.SuccessGetTransaction, result)
+	ctx.JSON(http.StatusOK, res)
+}
+
+func (t transactionController) GetNextOrder(ctx *gin.Context) {
+	userID := ctx.MustGet("user_id").(string)
+
+	result, err := t.transactionService.GetNextOrder(ctx.Request.Context(), userID)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetNextOrder, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessGetNextOrder, result)
 	ctx.JSON(http.StatusOK, res)
 }
