@@ -15,8 +15,8 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 		transactionGroup.POST("/",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleCustomer},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleCustomer},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.CreateTransaction)
 		transactionGroup.GET("/", middleware.Authenticate(jwtService), transactionController.GetAllTransactionsWithPagination)
@@ -27,22 +27,22 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 		transactionGroup.GET("/next-order",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleKitchen},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleKitchen},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.GetNextOrder)
 		transactionGroup.POST("/start-cooking",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleKitchen},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleKitchen},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.StartCooking)
 		transactionGroup.POST("/finish-cooking",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleKitchen},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleKitchen},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.FinishCooking)
 
@@ -50,22 +50,22 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 		transactionGroup.GET("/ready-to-serve",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleWaiter},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleWaiter},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.GetAllReadyToServeTransactionList)
 		transactionGroup.POST("/start-delivering",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleWaiter},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleWaiter},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.StartDelivering)
 		transactionGroup.POST("/finish-delivering",
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
-				{user.RoleWaiter},
-				{user.RoleSuperAdmin},
+				{Name: user.RoleWaiter},
+				{Name: user.RoleSuperAdmin},
 			}),
 			transactionController.FinishDelivering)
 	}
