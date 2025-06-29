@@ -16,7 +16,6 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 			middleware.Authenticate(jwtService),
 			middleware.Authorize(userService, []user.Role{
 				{user.RoleCustomer},
-				{user.RoleWaiter},
 				{user.RoleSuperAdmin},
 			}),
 			transactionController.CreateTransaction)
