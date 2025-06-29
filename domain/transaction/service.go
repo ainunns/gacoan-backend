@@ -2,12 +2,13 @@ package transaction
 
 import (
 	"context"
+
 	"fmt"
 )
 
 type (
 	Service interface {
-		GenerateQueueCode(ctx context.Context) (string, error)
+		GenerateQueueCode(ctx context.Context, transactionID string) (string, error)
 	}
 
 	service struct {
@@ -21,17 +22,11 @@ func NewService(transactionRepository Repository) Service {
 	}
 }
 
-func (s *service) GenerateQueueCode(ctx context.Context) (string, error) {
-	latestCode, err := s.transactionRepository.GetLatestQueueCode(ctx, nil)
+func (s *service) GenerateQueueCode(ctx context.Context, transactionID string) (string, error) {
+	latestCode, err := s.transactionRepository.GetLatestQueueCode(ctx, nil, transactionID)
 	if err != nil {
-		return "", err
+		return "", fmt.Errorf("failed to get latest queue code: %w", err)
 	}
 
-	numericLatestCode, err := latestCode.QueueNumber()
-	if err != nil {
-		return "", err
-	}
-
-	newCodeString := fmt.Sprintf("Q%04d", numericLatestCode+1)
-	return newCodeString, nil
+	return latestCode, nil
 }

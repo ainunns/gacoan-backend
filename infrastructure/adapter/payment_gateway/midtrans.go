@@ -118,10 +118,12 @@ func (m midtransAdapter) HookPayment(ctx context.Context, tx interface{}, transa
 	}
 
 	transactionData.PaymentStatus = status
-	transactionData.PaymentCode = datas["status_code"].(string)
+	transactionData.PaymentCode = datas["transaction_id"].(string)
 
-	// TODO: Replace with actual queue code logic
-	queueCode := "xxx123"
+	queueCode, err := m.transactionDomainService.GenerateQueueCode(ctx, transactionData.ID.String())
+	if err != nil {
+		return fmt.Errorf("failed to generate queue code: %w", err)
+	}
 
 	err = db.WithContext(ctx).
 		Model(&transactionData).
