@@ -94,7 +94,7 @@ func main() {
 	route.UserRoute(server, userController, jwtService)
 	route.TableRoute(server, tableController, jwtService)
 	route.CategoryRoute(server, categoryController, jwtService)
-	route.MenuRoute(server, menuController, jwtService)
+	route.MenuRoute(server, menuController, jwtService, userService)
 	route.TransactionRoute(server, transactionController, jwtService, userService)
 	route.OrderRoute(server, orderController, jwtService)
 
