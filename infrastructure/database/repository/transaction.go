@@ -176,3 +176,32 @@ func (r *transactionRepository) UpdateTransaction(ctx context.Context, tx interf
 	transactionEntity = schema.TransactionSchemaToEntity(transactionSchema)
 	return transactionEntity, nil
 }
+
+func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return nil, err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = r.db.DB()
+	}
+
+	var transactionSchema schema.Transaction
+
+	query := db.WithContext(ctx).Where("user_id = ?", userID).Where("payment_status IN ?", []string{"settlement", "captured"})
+
+	if err = query.Where("order_status = ?", "pending").
+		Preload("Table").
+		Preload("Orders").
+		Preload("Orders.Menu").
+		Order("created_at ASC").First(&transactionSchema).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, nil
+		}
+		return nil, err
+	}
+
+	return transactionSchema, nil
+}

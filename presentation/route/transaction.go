@@ -15,5 +15,8 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 		transactionGroup.GET("/", middleware.Authenticate(jwtService), transactionController.GetAllTransactionsWithPagination)
 		transactionGroup.GET("/:id", middleware.Authenticate(jwtService), transactionController.GetTransactionByID)
 		transactionGroup.POST("/hook", transactionController.HookTransaction)
+
+		// Kitchen
+		transactionGroup.GET("/next-order", middleware.Authenticate(jwtService), transactionController.GetNextOrder)
 	}
 }

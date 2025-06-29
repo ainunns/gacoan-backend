@@ -11,4 +11,5 @@ type Repository interface {
 	GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error)
 	GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error)
 	UpdateTransaction(ctx context.Context, tx interface{}, transactionEntity Transaction) (Transaction, error)
+	GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error)
 }
