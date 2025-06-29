@@ -2,23 +2,29 @@ package payment_gateway
 
 import (
 	"context"
+	"fmt"
+	"fp-kpl/domain/identity"
 	"fp-kpl/domain/port"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/infrastructure/database/validation"
+	"os"
+
+	"github.com/google/uuid"
 	"github.com/midtrans/midtrans-go"
 	"github.com/midtrans/midtrans-go/snap"
 	"gorm.io/gorm"
-	"os"
 )
 
 type midtransAdapter struct {
-	db *gorm.DB
+	db                       *gorm.DB
+	transactionDomainService transaction.Service
 }
 
-func NewMidtransAdapter(db *gorm.DB) port.PaymentGatewayPort {
+func NewMidtransAdapter(db *gorm.DB, transactionDomainService transaction.Service) port.PaymentGatewayPort {
 	return &midtransAdapter{
-		db: db,
+		db:                       db,
+		transactionDomainService: transactionDomainService,
 	}
 }
 
@@ -79,4 +85,63 @@ func (m midtransAdapter) ProcessPayment(ctx context.Context, tx interface{}, tra
 		return "", snapErr.RawError
 	}
 	return snapResp.RedirectURL, nil
+}
+
+func (m midtransAdapter) HookPayment(ctx context.Context, tx interface{}, transactionId uuid.UUID, datas map[string]interface{}) error {
+	validatedTransaction, err := validation.ValidateTransaction(tx)
+	if err != nil {
+		return err
+	}
+
+	db := validatedTransaction.DB()
+	if db == nil {
+		db = m.db
+	}
+
+	identityTransactionId := identity.NewIDFromSchema(transactionId)
+
+	var transactionData schema.Transaction
+	err = db.WithContext(ctx).
+		Where("id = ?", identityTransactionId.String()).
+		First(&transactionData).Error
+	if err != nil {
+		return err
+	}
+
+	status, ok := datas["transaction_status"].(string)
+	if !ok {
+		return fmt.Errorf("transaction_status is required in datas")
+	}
+
+	if !isValidPaymentStatus(status) {
+		return fmt.Errorf("invalid payment status: %s", status)
+	}
+
+	transactionData.PaymentStatus = status
+	transactionData.PaymentCode = datas["status_code"].(string)
+
+	// TODO: Replace with actual queue code logic
+	queueCode := "xxx123"
+
+	err = db.WithContext(ctx).
+		Model(&transactionData).
+		Updates(map[string]interface{}{
+			"payment_status": transactionData.PaymentStatus,
+			"payment_code":   transactionData.PaymentCode,
+			"queue_code":     queueCode,
+		}).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func isValidPaymentStatus(status string) bool {
+	for _, paymentStatus := range transaction.PaymentStatuses {
+		if paymentStatus == status {
+			return true
+		}
+	}
+	return false
 }

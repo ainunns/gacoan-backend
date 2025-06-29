@@ -3,6 +3,7 @@ package main
 import (
 	"fp-kpl/application/service"
 	"fp-kpl/command"
+	"fp-kpl/domain/transaction"
 	"fp-kpl/infrastructure/adapter/payment_gateway"
 	"fp-kpl/infrastructure/database/config"
 	"fp-kpl/infrastructure/database/db_transaction"
@@ -53,8 +54,6 @@ func run(server *gin.Engine) {
 func main() {
 	db := config.SetUpDatabaseConnection()
 
-	paymentGateway := payment_gateway.NewMidtransAdapter(db)
-
 	jwtService := service.NewJWTService()
 	dbTransactionRepository := db_transaction.NewRepository(db)
 
@@ -64,6 +63,10 @@ func main() {
 	menuRepository := repository.NewMenuRepository(dbTransactionRepository)
 	orderRepository := repository.NewOrderRepository(dbTransactionRepository)
 	transactionRepository := repository.NewTransactionRepository(dbTransactionRepository)
+
+	transactionDomainService := transaction.NewService(transactionRepository)
+
+	paymentGateway := payment_gateway.NewMidtransAdapter(db, transactionDomainService)
 
 	userService := service.NewUserService(userRepository, jwtService, dbTransactionRepository)
 	tableService := service.NewTableService(tableRepository)

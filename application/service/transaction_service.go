@@ -2,6 +2,7 @@ package service
 
 import (
 	"context"
+	"fmt"
 	"fp-kpl/application"
 	"fp-kpl/application/request"
 	"fp-kpl/application/response"
@@ -12,11 +13,14 @@ import (
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
 	"fp-kpl/infrastructure/database/validation"
+
+	"github.com/google/uuid"
 )
 
 type (
 	TransactionService interface {
 		CreateTransaction(ctx context.Context, userID string, req request.TransactionCreate) (response.TransactionCreate, error)
+		HookTransaction(ctx context.Context, datas map[string]interface{}) error
 	}
 
 	transactionService struct {
@@ -90,10 +94,16 @@ func (s *transactionService) CreateTransaction(ctx context.Context, userID strin
 		return response.TransactionCreate{}, err
 	}
 
+	paymentStatus, err := transaction.NewPayment("", transaction.PaymentStatusPending)
+	if err != nil {
+		return response.TransactionCreate{}, err
+	}
+
 	transactionEntity := transaction.Transaction{
 		UserID:      retrievedUser.ID,
 		TableID:     retrievedTable.ID,
 		OrderStatus: orderStatus,
+		Payment:     paymentStatus,
 		TotalPrice:  totalPrice,
 	}
 
@@ -141,4 +151,35 @@ func (s *transactionService) CreateTransaction(ctx context.Context, userID strin
 		PaymentLink:   paymentURL,
 		Orders:        createdOrders,
 	}, nil
+}
+
+func (s *transactionService) HookTransaction(ctx context.Context, datas map[string]interface{}) error {
+	validatedTransaction, err := validation.ValidateTransaction(s.transaction)
+	if err != nil {
+		return err
+	}
+
+	tx, err := validatedTransaction.Begin(ctx)
+	if err != nil {
+		return err
+	}
+
+	defer func() {
+		if r := recover(); r != nil {
+			err = application.RecoveredFromPanic(r)
+		}
+		validatedTransaction.CommitOrRollback(ctx, tx, err)
+	}()
+
+	transactionID, ok := datas["order_id"].(string)
+	if !ok {
+		return fmt.Errorf("order_id is required in datas")
+	}
+
+	err = s.paymentGatewayPort.HookPayment(ctx, tx, uuid.MustParse(transactionID), datas)
+	if err != nil {
+		return fmt.Errorf("failed to hook payment: %w", err)
+	}
+
+	return nil
 }
