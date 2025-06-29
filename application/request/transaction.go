@@ -18,4 +18,12 @@ type (
 	FinishCooking struct {
 		QueueCode string `json:"queue_code" form:"queue_code" binding:"required"`
 	}
+
+	StartDelivering struct {
+		QueueCode string `json:"queue_code" form:"queue_code" binding:"required"`
+	}
+
+	FinishDelivering struct {
+		QueueCode string `json:"queue_code" form:"queue_code" binding:"required"`
+	}
 )

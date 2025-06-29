@@ -20,5 +20,10 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 		transactionGroup.GET("/next-order", middleware.Authenticate(jwtService), transactionController.GetNextOrder)
 		transactionGroup.POST("/start-cooking", middleware.Authenticate(jwtService), transactionController.StartCooking)
 		transactionGroup.POST("/finish-cooking", middleware.Authenticate(jwtService), transactionController.FinishCooking)
+
+		// Waiter
+		transactionGroup.GET("/ready-to-serve", middleware.Authenticate(jwtService), transactionController.GetAllReadyToServeTransactionList)
+		transactionGroup.POST("/start-delivering", middleware.Authenticate(jwtService), transactionController.StartDelivering)
+		transactionGroup.POST("/finish-delivering", middleware.Authenticate(jwtService), transactionController.FinishDelivering)
 	}
 }
