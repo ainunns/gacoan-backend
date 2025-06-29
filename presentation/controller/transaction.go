@@ -5,13 +5,15 @@ import (
 	"fp-kpl/application/service"
 	"fp-kpl/presentation"
 	"fp-kpl/presentation/message"
-	"github.com/gin-gonic/gin"
 	"net/http"
+
+	"github.com/gin-gonic/gin"
 )
 
 type (
 	TransactionController interface {
 		CreateTransaction(ctx *gin.Context)
+		HookTransaction(ctx *gin.Context)
 	}
 
 	transactionController struct {
@@ -43,4 +45,23 @@ func (t transactionController) CreateTransaction(ctx *gin.Context) {
 
 	res := presentation.BuildResponseSuccess(message.SuccessCreateTransaction, result)
 	ctx.JSON(http.StatusCreated, res)
+}
+
+func (t transactionController) HookTransaction(ctx *gin.Context) {
+	var datas map[string]interface{}
+	if err := ctx.ShouldBindJSON(&datas); err != nil {
+		res := presentation.BuildResponseFailed(message.FailedGetDataFromBody, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusBadRequest, res)
+		return
+	}
+
+	err := t.transactionService.HookTransaction(ctx.Request.Context(), datas)
+	if err != nil {
+		res := presentation.BuildResponseFailed(message.FailedHookTransaction, err.Error(), nil)
+		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
+		return
+	}
+
+	res := presentation.BuildResponseSuccess(message.SuccessHookTransaction, nil)
+	ctx.JSON(http.StatusOK, res)
 }
