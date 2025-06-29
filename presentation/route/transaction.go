@@ -13,6 +13,7 @@ func TransactionRoute(route *gin.Engine, transactionController controller.Transa
 	{
 		transactionGroup.POST("/", middleware.Authenticate(jwtService), transactionController.CreateTransaction)
 		transactionGroup.GET("/", middleware.Authenticate(jwtService), transactionController.GetAllTransactionsWithPagination)
+		transactionGroup.GET("/:id", middleware.Authenticate(jwtService), transactionController.GetTransactionByID)
 		transactionGroup.POST("/hook", transactionController.HookTransaction)
 	}
 }
