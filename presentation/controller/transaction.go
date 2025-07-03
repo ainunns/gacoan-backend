@@ -1,8 +1,10 @@
 package controller
 
 import (
+	"errors"
 	"fp-kpl/application/request"
 	"fp-kpl/application/service"
+	"fp-kpl/domain/transaction"
 	"fp-kpl/platform/pagination"
 	"fp-kpl/presentation"
 	"fp-kpl/presentation/message"
@@ -132,10 +134,14 @@ func (t transactionController) GetTransactionByID(ctx *gin.Context) {
 }
 
 func (t transactionController) GetNextOrder(ctx *gin.Context) {
-	userID := ctx.MustGet("user_id").(string)
-
-	result, err := t.transactionService.GetNextOrder(ctx.Request.Context(), userID)
+	result, err := t.transactionService.GetNextOrder(ctx.Request.Context())
 	if err != nil {
+		if errors.Is(err, transaction.ErrorNextOrderNotFound) {
+			res := presentation.BuildResponseSuccess(message.SuccessGetNextOrder, nil)
+			ctx.JSON(http.StatusOK, res)
+			return
+		}
+
 		res := presentation.BuildResponseFailed(message.FailedGetNextOrder, err.Error(), nil)
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
 		return

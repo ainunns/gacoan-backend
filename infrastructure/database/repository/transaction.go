@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"fp-kpl/application/response"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/infrastructure/database/db_transaction"
 	"fp-kpl/infrastructure/database/schema"
@@ -213,10 +214,10 @@ func (r *transactionRepository) GetLatestQueueCode(ctx context.Context, tx inter
 	return fmt.Sprintf("Q%04d", num), nil
 }
 
-func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
+func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}) (response.NextOrder, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
-		return nil, err
+		return response.NextOrder{}, err
 	}
 
 	db := validatedTransaction.DB()
@@ -225,21 +226,38 @@ func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}
 	}
 
 	var transactionSchema schema.Transaction
+	today := time.Now().Format("2006-01-02")
 
-	query := db.WithContext(ctx).Where("user_id = ?", userID).Where("payment_status IN ?", []string{transaction.PaymentStatusSettlement, transaction.PaymentStatusCapture})
+	query := db.WithContext(ctx).Where("payment_status IN ?", []string{transaction.PaymentStatusSettlement, transaction.PaymentStatusCapture})
 
 	if err = query.Where("order_status = ?", "pending").
+		Where("DATE(created_at) = ?", today).
 		Preload("Table").
 		Preload("Orders").
 		Preload("Orders.Menu").
 		Order("created_at ASC").First(&transactionSchema).Error; err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return nil, nil
+			return response.NextOrder{}, nil
 		}
-		return nil, err
+		return response.NextOrder{}, err
 	}
 
-	return transactionSchema, nil
+	var orderResponses []response.OrderForTransaction
+	for _, orderSchema := range transactionSchema.Orders {
+		orderResponses = append(orderResponses, response.OrderForTransaction{
+			Menu: response.MenuForTransaction{
+				ID:    orderSchema.Menu.ID.String(),
+				Name:  orderSchema.Menu.Name,
+				Price: orderSchema.Menu.Price.String(),
+			},
+			Quantity: orderSchema.Quantity,
+		})
+	}
+
+	return response.NextOrder{
+		QueueCode: *transactionSchema.QueueCode,
+		Orders:    orderResponses,
+	}, nil
 }
 
 func (r *transactionRepository) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {

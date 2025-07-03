@@ -49,8 +49,8 @@ func (m *MockTransactionRepositoryForPagination) GetAllReadyToServeTransactionLi
 func (m *MockTransactionRepositoryForPagination) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error) {
 	return nil, nil
 }
-func (m *MockTransactionRepositoryForPagination) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForPagination) GetNextOrder(ctx context.Context, tx interface{}) (response.NextOrder, error) {
+	return response.NextOrder{}, nil
 }
 func (m *MockTransactionRepositoryForPagination) GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error) {
 	return "", nil
