@@ -53,8 +53,8 @@ func (m *MockTransactionRepositoryForFinishCooking) GetTransactionByID(ctx conte
 func (m *MockTransactionRepositoryForFinishCooking) GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error) {
 	return "", nil
 }
-func (m *MockTransactionRepositoryForFinishCooking) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForFinishCooking) GetNextOrder(ctx context.Context, tx interface{}) (response.NextOrder, error) {
+	return response.NextOrder{}, nil
 }
 func (m *MockTransactionRepositoryForFinishCooking) UpdateCookedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	return transaction.Transaction{}, nil

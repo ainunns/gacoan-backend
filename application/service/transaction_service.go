@@ -27,7 +27,7 @@ type (
 		GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error)
 		GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error)
 		GetAllReadyToServeTransactionList(ctx context.Context, req pagination.Request) (pagination.ResponseWithData, error)
-		GetNextOrder(ctx context.Context, userID string) (response.NextOrder, error)
+		GetNextOrder(ctx context.Context) (response.NextOrder, error)
 		StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error)
 		FinishCooking(ctx context.Context, req request.FinishCooking) (response.FinishCooking, error)
 		StartDelivering(ctx context.Context, req request.StartDelivering) (response.StartDelivering, error)
@@ -365,37 +365,17 @@ func (s *transactionService) calculateMaxCookingTimeFromSchema(orders []schema.O
 	return maxCookingTime
 }
 
-func (s *transactionService) GetNextOrder(ctx context.Context, userID string) (response.NextOrder, error) {
-	retrievedData, err := s.transactionRepository.GetNextOrder(ctx, nil, userID)
+func (s *transactionService) GetNextOrder(ctx context.Context) (response.NextOrder, error) {
+	retrievedNextOrder, err := s.transactionRepository.GetNextOrder(ctx, nil)
 	if err != nil {
 		return response.NextOrder{}, err
 	}
 
-	if retrievedData == nil {
-		return response.NextOrder{}, nil
+	if retrievedNextOrder.QueueCode == "" {
+		return response.NextOrder{}, transaction.ErrorNextOrderNotFound
 	}
 
-	transactionSchema, ok := retrievedData.(schema.Transaction)
-	if !ok {
-		return response.NextOrder{}, transaction.ErrorInvalidTransaction
-	}
-
-	var orderResponses []response.OrderForTransaction
-	for _, orderSchema := range transactionSchema.Orders {
-		orderResponses = append(orderResponses, response.OrderForTransaction{
-			Menu: response.MenuForTransaction{
-				ID:    orderSchema.Menu.ID.String(),
-				Name:  orderSchema.Menu.Name,
-				Price: orderSchema.Menu.Price.String(),
-			},
-			Quantity: orderSchema.Quantity,
-		})
-	}
-
-	return response.NextOrder{
-		QueueCode: *transactionSchema.QueueCode,
-		Orders:    orderResponses,
-	}, nil
+	return retrievedNextOrder, nil
 }
 
 func (s *transactionService) StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error) {

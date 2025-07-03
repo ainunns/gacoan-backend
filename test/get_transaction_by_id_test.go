@@ -51,9 +51,9 @@ func (m *MockTransactionRepositoryForGetByID) GetLatestQueueCode(ctx context.Con
 	return args.Get(0).(string), args.Error(1)
 }
 
-func (m *MockTransactionRepositoryForGetByID) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
-	args := m.Called(ctx, tx, userID)
-	return args.Get(0), args.Error(1)
+func (m *MockTransactionRepositoryForGetByID) GetNextOrder(ctx context.Context, tx interface{}) (response.NextOrder, error) {
+	args := m.Called(ctx, tx)
+	return args.Get(0).(response.NextOrder), args.Error(1)
 }
 
 func (m *MockTransactionRepositoryForGetByID) UpdateCookedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
