@@ -40,8 +40,8 @@ func (m *MockTransactionRepositoryForReadyToServe) GetAllTransactionsWithPaginat
 func (m *MockTransactionRepositoryForReadyToServe) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error) {
 	return nil, nil
 }
-func (m *MockTransactionRepositoryForReadyToServe) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForReadyToServe) GetNextOrder(ctx context.Context, tx interface{}) (response.NextOrder, error) {
+	return response.NextOrder{}, nil
 }
 func (m *MockTransactionRepositoryForReadyToServe) GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error) {
 	return "", nil

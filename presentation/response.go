@@ -3,18 +3,29 @@ package presentation
 type Response struct {
 	Status  bool   `json:"status"`
 	Message string `json:"message"`
-	Error   any    `json:"error,omitempty"`
-	Data    any    `json:"data,omitempty"`
-	Meta    any    `json:"meta,omitempty"`
+}
+
+type SuccessResponse struct {
+	Response
+	Data any `json:"data"`
+	Meta any `json:"meta,omitempty"`
+}
+
+type FailedResponse struct {
+	Response
+	Error any `json:"error"`
+	Data  any `json:"data,omitempty"`
 }
 
 type EmptyObj struct{}
 
-func BuildResponseSuccess(message string, data any, meta ...any) Response {
-	res := Response{
-		Status:  true,
-		Message: message,
-		Data:    data,
+func BuildResponseSuccess(message string, data any, meta ...any) SuccessResponse {
+	res := SuccessResponse{
+		Response: Response{
+			Status:  true,
+			Message: message,
+		},
+		Data: data,
 	}
 
 	if len(meta) > 0 {
@@ -24,12 +35,14 @@ func BuildResponseSuccess(message string, data any, meta ...any) Response {
 	return res
 }
 
-func BuildResponseFailed(message string, err string, data any) Response {
-	res := Response{
-		Status:  false,
-		Message: message,
-		Error:   err,
-		Data:    data,
+func BuildResponseFailed(message string, err string, data any) FailedResponse {
+	res := FailedResponse{
+		Response: Response{
+			Status:  false,
+			Message: message,
+		},
+		Error: err,
+		Data:  data,
 	}
 	return res
 }

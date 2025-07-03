@@ -26,9 +26,9 @@ type MockTransactionRepositoryForNextOrder struct {
 	mock.Mock
 }
 
-func (m *MockTransactionRepositoryForNextOrder) GetNextOrder(ctx context.Context, tx interface{}, userID string) (interface{}, error) {
-	args := m.Called(ctx, tx, userID)
-	return args.Get(0), args.Error(1)
+func (m *MockTransactionRepositoryForNextOrder) GetNextOrder(ctx context.Context, tx interface{}) (response.NextOrder, error) {
+	args := m.Called(ctx, tx)
+	return args.Get(0).(response.NextOrder), args.Error(1)
 }
 
 // Implement other methods as no-op for interface compliance
@@ -173,7 +173,7 @@ func TestGetNextOrder_Success(t *testing.T) {
 
 	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return(transactionSchema, nil)
 
-	result, err := transactionService.GetNextOrder(ctx, userID)
+	result, err := transactionService.GetNextOrder(ctx)
 
 	assert.NoError(t, err)
 	assert.Equal(t, queueCode, result.QueueCode)
@@ -209,7 +209,7 @@ func TestGetNextOrder_NoOrder(t *testing.T) {
 
 	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return(nil, nil)
 
-	result, err := transactionService.GetNextOrder(ctx, userID)
+	result, err := transactionService.GetNextOrder(ctx)
 
 	assert.NoError(t, err)
 	assert.Equal(t, response.NextOrder{}, result)
@@ -240,7 +240,7 @@ func TestGetNextOrder_InvalidType(t *testing.T) {
 
 	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return("invalid_type", nil)
 
-	result, err := transactionService.GetNextOrder(ctx, userID)
+	result, err := transactionService.GetNextOrder(ctx)
 
 	assert.Error(t, err)
 	assert.Equal(t, transaction.ErrorInvalidTransaction, err)
@@ -273,7 +273,7 @@ func TestGetNextOrder_RepoError(t *testing.T) {
 	repoErr := assert.AnError
 	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return(nil, repoErr)
 
-	result, err := transactionService.GetNextOrder(ctx, userID)
+	result, err := transactionService.GetNextOrder(ctx)
 
 	assert.Error(t, err)
 	assert.Equal(t, response.NextOrder{}, result)
