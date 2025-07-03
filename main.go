@@ -3,6 +3,7 @@ package main
 import (
 	"fp-kpl/application/service"
 	"fp-kpl/command"
+	"fp-kpl/domain/order"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/infrastructure/adapter/payment_gateway"
 	"fp-kpl/infrastructure/database/config"
@@ -65,6 +66,7 @@ func main() {
 	transactionRepository := repository.NewTransactionRepository(dbTransactionRepository)
 
 	transactionDomainService := transaction.NewService(transactionRepository)
+	orderDomainService := order.NewService()
 
 	paymentGateway := payment_gateway.NewMidtransAdapter(db, transactionDomainService)
 
@@ -72,7 +74,7 @@ func main() {
 	tableService := service.NewTableService(tableRepository)
 	categoryService := service.NewCategoryService(categoryRepository)
 	menuService := service.NewMenuService(menuRepository, categoryRepository)
-	orderService := service.NewOrderService(orderRepository, menuRepository)
+	orderService := service.NewOrderService(orderRepository, menuRepository, orderDomainService)
 	transactionService := service.NewTransactionService(transactionRepository, userRepository, tableRepository, orderRepository, menuRepository, paymentGateway, dbTransactionRepository, orderService)
 
 	userController := controller.NewUserController(userService)

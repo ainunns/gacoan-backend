@@ -15,18 +15,21 @@ type (
 	}
 
 	orderService struct {
-		orderRepository order.Repository
-		menuRepository  menu.Repository
+		orderRepository    order.Repository
+		menuRepository     menu.Repository
+		orderDomainService order.Service
 	}
 )
 
 func NewOrderService(
 	orderRepository order.Repository,
 	menuRepository menu.Repository,
+	orderDomainService order.Service,
 ) OrderService {
 	return &orderService{
-		orderRepository: orderRepository,
-		menuRepository:  menuRepository,
+		orderRepository:    orderRepository,
+		menuRepository:     menuRepository,
+		orderDomainService: orderDomainService,
 	}
 }
 
@@ -39,14 +42,14 @@ func (s *orderService) CalculateTotalPrice(ctx context.Context, orders []request
 			return shared.Price{}, menu.ErrorMenuNotFound
 		}
 
-		menuPrice := menuEntity.Price.Price
+		menuPrice := menuEntity.Price
 
-		if orderItem.Quantity <= 0 {
-			return shared.Price{}, order.ErrorInvalidQuantity
+		orderPrice, err := s.orderDomainService.CalculatePrice(ctx, menuPrice, int64(orderItem.Quantity))
+		if err != nil {
+			return shared.Price{}, err
 		}
 
-		orderPrice := menuPrice.Mul(decimal.NewFromInt(int64(orderItem.Quantity)))
-		totalPrice = totalPrice.Add(orderPrice)
+		totalPrice = totalPrice.Add(orderPrice.Price)
 	}
 
 	return shared.NewPrice(totalPrice)
