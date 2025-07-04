@@ -1,6 +1,8 @@
 package response
 
-import "github.com/shopspring/decimal"
+import (
+	"github.com/shopspring/decimal"
+)
 
 type (
 	TransactionCreate struct {
