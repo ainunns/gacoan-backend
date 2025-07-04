@@ -10,12 +10,10 @@ import (
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/platform/pagination"
 	"testing"
 
 	"github.com/google/uuid"
-	"github.com/shopspring/decimal"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 )
@@ -65,8 +63,11 @@ func (m *MockTransactionRepositoryForNextOrder) UpdateTransactionDeliveringStatu
 func (m *MockTransactionRepositoryForNextOrder) UpdateServedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	return transaction.Transaction{}, nil
 }
-func (m *MockTransactionRepositoryForNextOrder) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForNextOrder) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
+	return transaction.Query{}, nil
+}
+func (m *MockTransactionRepositoryForNextOrder) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	return transaction.Query{}, nil
 }
 
 // Mocks for other repositories (minimal, not used in these tests)
@@ -141,46 +142,37 @@ func TestGetNextOrder_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,
 	)
 
 	ctx := context.Background()
-	userID := uuid.New().String()
 	queueCode := "Q0005"
-	menuID := uuid.New()
-	orderID := uuid.New()
-	transactionID := uuid.New()
+	menuName := "Nasi Goreng"
+	menuPrice := "20000"
+	quantity := 2
 
-	// Mock menu and order
-	menuSchema := &schema.Menu{
-		ID:    menuID,
-		Name:  "Nasi Goreng",
-		Price: decimal.NewFromInt(20000),
-	}
-	orderSchema := schema.Order{
-		ID:       orderID,
-		Menu:     menuSchema,
-		MenuID:   menuID,
-		Quantity: 2,
-	}
-	transactionSchema := schema.Transaction{
-		ID:        transactionID,
-		QueueCode: &queueCode,
-		Orders:    []schema.Order{orderSchema},
-	}
-
-	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetNextOrder", ctx, nil).Return(response.NextOrder{
+		QueueCode: queueCode,
+		Orders: []response.OrderForTransaction{{
+			Menu: response.MenuForTransaction{
+				Name:  menuName,
+				Price: menuPrice,
+			},
+			Quantity: quantity,
+		}},
+	}, nil)
 
 	result, err := transactionService.GetNextOrder(ctx)
 
 	assert.NoError(t, err)
 	assert.Equal(t, queueCode, result.QueueCode)
 	assert.Len(t, result.Orders, 1)
-	assert.Equal(t, "Nasi Goreng", result.Orders[0].Menu.Name)
-	assert.Equal(t, "20000", result.Orders[0].Menu.Price)
-	assert.Equal(t, 2, result.Orders[0].Quantity)
+	assert.Equal(t, menuName, result.Orders[0].Menu.Name)
+	assert.Equal(t, menuPrice, result.Orders[0].Menu.Price)
+	assert.Equal(t, quantity, result.Orders[0].Quantity)
 
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -199,19 +191,19 @@ func TestGetNextOrder_NoOrder(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,
 	)
 
 	ctx := context.Background()
-	userID := uuid.New().String()
 
-	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return(nil, nil)
+	mockTransactionRepo.On("GetNextOrder", ctx, nil).Return(response.NextOrder{}, transaction.ErrorNextOrderNotFound)
 
 	result, err := transactionService.GetNextOrder(ctx)
 
-	assert.NoError(t, err)
+	assert.ErrorIs(t, err, transaction.ErrorNextOrderNotFound)
 	assert.Equal(t, response.NextOrder{}, result)
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -230,20 +222,19 @@ func TestGetNextOrder_InvalidType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,
 	)
 
 	ctx := context.Background()
-	userID := uuid.New().String()
 
-	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return("invalid_type", nil)
+	mockTransactionRepo.On("GetNextOrder", ctx, nil).Return(response.NextOrder{}, assert.AnError)
 
 	result, err := transactionService.GetNextOrder(ctx)
 
-	assert.Error(t, err)
-	assert.Equal(t, transaction.ErrorInvalidTransaction, err)
+	assert.ErrorIs(t, err, assert.AnError)
 	assert.Equal(t, response.NextOrder{}, result)
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -262,16 +253,16 @@ func TestGetNextOrder_RepoError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,
 	)
 
 	ctx := context.Background()
-	userID := uuid.New().String()
 
 	repoErr := assert.AnError
-	mockTransactionRepo.On("GetNextOrder", ctx, nil, userID).Return(nil, repoErr)
+	mockTransactionRepo.On("GetNextOrder", ctx, nil).Return(response.NextOrder{}, repoErr)
 
 	result, err := transactionService.GetNextOrder(ctx)
 

@@ -8,11 +8,13 @@ import (
 	menu_item "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
 	"fp-kpl/platform/pagination"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/stretchr/testify/assert"
@@ -37,6 +39,11 @@ func (m *MockTransactionRepositoryForFinishDelivering) GetAllTransactionsWithPag
 func (m *MockTransactionRepositoryForFinishDelivering) GetAllReadyToServeTransactionList(ctx context.Context, tx interface{}, req pagination.Request) (pagination.ResponseWithData, error) {
 	args := m.Called(ctx, tx, req)
 	return args.Get(0).(pagination.ResponseWithData), args.Error(1)
+}
+
+func (m *MockTransactionRepositoryForFinishDelivering) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	args := m.Called(ctx, tx, id)
+	return args.Get(0).(transaction.Query), args.Error(1)
 }
 
 func (m *MockTransactionRepositoryForFinishDelivering) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error) {
@@ -84,9 +91,9 @@ func (m *MockTransactionRepositoryForFinishDelivering) UpdateServedAt(ctx contex
 	return args.Get(0).(transaction.Transaction), args.Error(1)
 }
 
-func (m *MockTransactionRepositoryForFinishDelivering) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
+func (m *MockTransactionRepositoryForFinishDelivering) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
 	args := m.Called(ctx, tx, queueCode)
-	return args.Get(0), args.Error(1)
+	return args.Get(0).(transaction.Query), args.Error(1)
 }
 
 // Mock other repositories
@@ -180,6 +187,36 @@ func (m *MockPaymentGatewayPortForFinishDelivering) HookPayment(ctx context.Cont
 	return args.Error(0)
 }
 
+// Mock transaction domain service
+type MockTransactionDomainServiceForFinishDelivering struct {
+	mock.Mock
+}
+
+func (m *MockTransactionDomainServiceForFinishDelivering) GenerateQueueCode(ctx context.Context, transactionID string) (string, error) {
+	args := m.Called(ctx, transactionID)
+	return args.Get(0).(string), args.Error(1)
+}
+
+func (m *MockTransactionDomainServiceForFinishDelivering) CalculateMaxCookingTime(orders []transaction.OrderQuery) time.Duration {
+	args := m.Called(orders)
+	return args.Get(0).(time.Duration)
+}
+
+func (m *MockTransactionDomainServiceForFinishDelivering) GetOrderDelayStatus(maxCookingTime time.Duration, cookedAt *time.Time, servedAt *time.Time) bool {
+	args := m.Called(maxCookingTime, cookedAt, servedAt)
+	return args.Get(0).(bool)
+}
+
+// Mock order service
+type MockOrderServiceForFinishDelivering struct {
+	mock.Mock
+}
+
+func (m *MockOrderServiceForFinishDelivering) CalculateTotalPrice(ctx context.Context, orders []request.Order) (shared.Price, error) {
+	args := m.Called(ctx, orders)
+	return args.Get(0).(shared.Price), args.Error(1)
+}
+
 // Mock transaction interface that can be validated
 type MockTransactionInterfaceForFinishDelivering struct {
 	mock.Mock
@@ -206,8 +243,10 @@ func TestFinishDelivering_Success(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -215,9 +254,10 @@ func TestFinishDelivering_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil, // orderService
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -241,8 +281,10 @@ func TestFinishDelivering_TransactionNotFound(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -250,9 +292,10 @@ func TestFinishDelivering_TransactionNotFound(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -275,8 +318,10 @@ func TestFinishDelivering_InvalidTransactionType(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -284,9 +329,10 @@ func TestFinishDelivering_InvalidTransactionType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -309,8 +355,10 @@ func TestFinishDelivering_InvalidOrderStatus(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -318,9 +366,10 @@ func TestFinishDelivering_InvalidOrderStatus(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -343,8 +392,10 @@ func TestFinishDelivering_UpdateStatusError(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -352,9 +403,10 @@ func TestFinishDelivering_UpdateStatusError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -377,8 +429,10 @@ func TestFinishDelivering_UpdateServedAtError(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -386,9 +440,10 @@ func TestFinishDelivering_UpdateServedAtError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -411,8 +466,10 @@ func TestFinishDelivering_TransactionBeginError(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -420,9 +477,10 @@ func TestFinishDelivering_TransactionBeginError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -445,8 +503,10 @@ func TestFinishDelivering_WithMultipleOrders(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForFinishDelivering)
 	mockOrderRepo := new(MockOrderRepositoryForFinishDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForFinishDelivering)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForFinishDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishDelivering)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishDelivering)
+	mockOrderService := new(MockOrderServiceForFinishDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -454,9 +514,10 @@ func TestFinishDelivering_WithMultipleOrders(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()

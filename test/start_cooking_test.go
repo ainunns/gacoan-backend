@@ -24,9 +24,13 @@ type MockTransactionRepositoryForStartCooking struct {
 	mock.Mock
 }
 
-func (m *MockTransactionRepositoryForStartCooking) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
+func (m *MockTransactionRepositoryForStartCooking) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
 	args := m.Called(ctx, tx, queueCode)
-	return args.Get(0), args.Error(1)
+	return args.Get(0).(transaction.Query), args.Error(1)
+}
+
+func (m *MockTransactionRepositoryForStartCooking) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	return transaction.Query{}, nil
 }
 
 func (m *MockTransactionRepositoryForStartCooking) UpdateTransactionCookingStatusStart(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
@@ -160,6 +164,7 @@ func TestStartCooking_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
@@ -192,6 +197,7 @@ func TestStartCooking_TransactionNotFound(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
@@ -224,6 +230,7 @@ func TestStartCooking_InvalidTransactionType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
@@ -256,6 +263,7 @@ func TestStartCooking_InvalidOrderStatus(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
@@ -288,6 +296,7 @@ func TestStartCooking_GetTransactionError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
@@ -320,6 +329,7 @@ func TestStartCooking_UpdateStatusError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
@@ -352,6 +362,7 @@ func TestStartCooking_WithMultipleOrders(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		mockTransactionInterface,
 		nil,
