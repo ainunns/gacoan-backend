@@ -12,7 +12,6 @@ import (
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/infrastructure/database/validation"
 	"fp-kpl/platform/pagination"
 	"time"
@@ -25,7 +24,7 @@ type (
 		CreateTransaction(ctx context.Context, userID string, req request.TransactionCreate) (response.TransactionCreate, error)
 		HookTransaction(ctx context.Context, datas map[string]interface{}) error
 		GetAllTransactionsWithPagination(ctx context.Context, userID string, req pagination.Request) (pagination.ResponseWithData, error)
-		GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error)
+		GetTransactionByID(ctx context.Context, id string) (response.Transaction, error)
 		GetAllReadyToServeTransactionList(ctx context.Context, req pagination.Request) (pagination.ResponseWithData, error)
 		GetNextOrder(ctx context.Context) (response.NextOrder, error)
 		StartCooking(ctx context.Context, req request.StartCooking) (response.StartCooking, error)
@@ -204,49 +203,48 @@ func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Contex
 
 	data := make([]any, 0, len(retrievedData.Data))
 	for _, retrievedTransaction := range retrievedData.Data {
-		transactionSchema, ok := retrievedTransaction.(schema.Transaction)
+		transactionQuery, ok := retrievedTransaction.(transaction.Query)
 		if !ok {
 			return pagination.ResponseWithData{}, transaction.ErrorInvalidTransaction
 		}
 
 		var orderResponses []response.OrderForTransaction
-		for _, orderSchema := range transactionSchema.Orders {
+		for _, orderQuery := range transactionQuery.Orders {
 			orderResponses = append(orderResponses, response.OrderForTransaction{
 				Menu: response.MenuForTransaction{
-					ID:    orderSchema.Menu.ID.String(),
-					Name:  orderSchema.Menu.Name,
-					Price: orderSchema.Menu.Price.String(),
+					ID:    orderQuery.Menu.ID.String(),
+					Name:  orderQuery.Menu.Name,
+					Price: orderQuery.Menu.Price.Price.String(),
 				},
-				Quantity: orderSchema.Quantity,
+				Quantity: orderQuery.Order.Quantity,
 			})
 		}
 
-		maxCookingTime := s.calculateMaxCookingTimeFromSchema(transactionSchema.Orders)
-		transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+		maxCookingTime := s.calculateMaxCookingTime(transactionQuery.Orders)
 
 		now := time.Now()
 		isDelayed := false
 
-		if transactionEntity.CookedAt != nil {
-			expectedFinishTime := transactionEntity.CookedAt.Add(maxCookingTime)
-			if transactionEntity.ServedAt != nil {
-				isDelayed = transactionEntity.ServedAt.After(expectedFinishTime)
+		if transactionQuery.Transaction.CookedAt != nil {
+			expectedFinishTime := transactionQuery.Transaction.CookedAt.Add(maxCookingTime)
+			if transactionQuery.Transaction.ServedAt != nil {
+				isDelayed = transactionQuery.Transaction.ServedAt.After(expectedFinishTime)
 			} else {
 				isDelayed = now.After(expectedFinishTime)
 			}
 		}
 
 		data = append(data, response.Transaction{
-			ID:           transactionSchema.ID.String(),
-			QueueCode:    *transactionSchema.QueueCode,
+			ID:           transactionQuery.Transaction.ID.String(),
+			QueueCode:    transactionQuery.Transaction.QueueCode.Code,
 			EstimateTime: maxCookingTime.String(),
 			Orders:       orderResponses,
-			TotalPrice:   transactionSchema.TotalPrice,
+			TotalPrice:   transactionQuery.Transaction.TotalPrice.Price,
 			Table: response.Table{
-				ID:          transactionSchema.Table.ID.String(),
-				TableNumber: transactionSchema.Table.TableNumber,
+				ID:          transactionQuery.Table.ID.String(),
+				TableNumber: transactionQuery.Table.TableNumber,
 			},
-			OrderStatus: transactionSchema.OrderStatus,
+			OrderStatus: transactionQuery.Transaction.OrderStatus.Status,
 			IsDelayed:   isDelayed,
 		})
 	}
@@ -257,55 +255,48 @@ func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Contex
 	}, nil
 }
 
-func (s *transactionService) GetTransactionByID(ctx context.Context, userID string, id string) (response.Transaction, error) {
-	retrievedData, err := s.transactionRepository.GetTransactionByID(ctx, nil, userID, id)
+func (s *transactionService) GetTransactionByID(ctx context.Context, id string) (response.Transaction, error) {
+	retrievedData, err := s.transactionRepository.GetDetailedTransactionByID(ctx, nil, id)
 	if err != nil {
 		return response.Transaction{}, err
 	}
 
-	transactionSchema, ok := retrievedData.(schema.Transaction)
-	if !ok {
-		return response.Transaction{}, transaction.ErrorInvalidTransaction
-	}
-
 	var orderResponses []response.OrderForTransaction
-	for _, orderSchema := range transactionSchema.Orders {
+	for _, orderQuery := range retrievedData.Orders {
 		orderResponses = append(orderResponses, response.OrderForTransaction{
 			Menu: response.MenuForTransaction{
-				ID:    orderSchema.Menu.ID.String(),
-				Name:  orderSchema.Menu.Name,
-				Price: orderSchema.Menu.Price.String(),
+				ID:    orderQuery.Menu.ID.String(),
+				Name:  orderQuery.Menu.Name,
+				Price: orderQuery.Menu.Price.Price.String(),
 			},
-			Quantity: orderSchema.Quantity,
+			Quantity: orderQuery.Order.Quantity,
 		})
 	}
 
-	maxCookingTime := s.calculateMaxCookingTimeFromSchema(transactionSchema.Orders)
-
-	transactionEntity := schema.TransactionSchemaToEntity(transactionSchema)
+	maxCookingTime := s.calculateMaxCookingTime(retrievedData.Orders)
 
 	now := time.Now()
 	isDelayed := false
 
-	if transactionEntity.CookedAt != nil {
-		expectedFinishTime := transactionEntity.CookedAt.Add(maxCookingTime)
-		if transactionEntity.ServedAt != nil {
-			isDelayed = transactionEntity.ServedAt.After(expectedFinishTime)
+	if retrievedData.Transaction.CookedAt != nil {
+		expectedFinishTime := retrievedData.Transaction.CookedAt.Add(maxCookingTime)
+		if retrievedData.Transaction.ServedAt != nil {
+			isDelayed = retrievedData.Transaction.ServedAt.After(expectedFinishTime)
 		} else {
 			isDelayed = now.After(expectedFinishTime)
 		}
 	}
 
 	return response.Transaction{
-		ID:           transactionSchema.ID.String(),
-		QueueCode:    *transactionSchema.QueueCode,
+		ID:           retrievedData.Transaction.ID.String(),
+		QueueCode:    retrievedData.Transaction.QueueCode.Code,
 		EstimateTime: maxCookingTime.String(),
 		Orders:       orderResponses,
-		OrderStatus:  transactionSchema.OrderStatus,
-		TotalPrice:   transactionSchema.TotalPrice,
+		OrderStatus:  retrievedData.Transaction.OrderStatus.Status,
+		TotalPrice:   retrievedData.Transaction.TotalPrice.Price,
 		Table: response.Table{
-			ID:          transactionSchema.Table.ID.String(),
-			TableNumber: transactionSchema.Table.TableNumber,
+			ID:          retrievedData.Table.ID.String(),
+			TableNumber: retrievedData.Table.TableNumber,
 		},
 		IsDelayed: isDelayed,
 	}, nil
@@ -319,29 +310,29 @@ func (s *transactionService) GetAllReadyToServeTransactionList(ctx context.Conte
 
 	data := make([]any, 0, len(retrievedData.Data))
 	for _, retrievedTransaction := range retrievedData.Data {
-		transactionSchema, ok := retrievedTransaction.(schema.Transaction)
+		transactionQuery, ok := retrievedTransaction.(transaction.Query)
 		if !ok {
 			return pagination.ResponseWithData{}, transaction.ErrorInvalidTransaction
 		}
 
 		var orderResponses []response.OrderForWaiter
-		for _, orderSchema := range transactionSchema.Orders {
+		for _, orderQuery := range transactionQuery.Orders {
 			orderResponses = append(orderResponses, response.OrderForWaiter{
 				Menu: response.MenuForWaiter{
-					ID:   orderSchema.Menu.ID.String(),
-					Name: orderSchema.Menu.Name,
+					ID:   orderQuery.Menu.ID.String(),
+					Name: orderQuery.Menu.Name,
 				},
-				Quantity: orderSchema.Quantity,
+				Quantity: orderQuery.Order.Quantity,
 			})
 		}
 
 		tableResponse := response.TableForWaiter{
-			ID:          transactionSchema.Table.ID.String(),
-			TableNumber: transactionSchema.Table.TableNumber,
+			ID:          transactionQuery.Table.ID.String(),
+			TableNumber: transactionQuery.Table.TableNumber,
 		}
 
 		data = append(data, response.TransactionForWaiter{
-			QueueCode: *transactionSchema.QueueCode,
+			QueueCode: transactionQuery.Transaction.QueueCode.Code,
 			Orders:    orderResponses,
 			Table:     tableResponse,
 		})
@@ -353,12 +344,12 @@ func (s *transactionService) GetAllReadyToServeTransactionList(ctx context.Conte
 	}, nil
 }
 
-func (s *transactionService) calculateMaxCookingTimeFromSchema(orders []schema.Order) time.Duration {
+func (s *transactionService) calculateMaxCookingTime(orders []transaction.OrderQuery) time.Duration {
 	maxCookingTime := time.Duration(0)
 
-	for _, orderSchema := range orders {
-		if orderSchema.Menu.CookingTime.Duration > maxCookingTime {
-			maxCookingTime = orderSchema.Menu.CookingTime.Duration
+	for _, orderQuery := range orders {
+		if orderQuery.Menu.CookingTime > maxCookingTime {
+			maxCookingTime = orderQuery.Menu.CookingTime
 		}
 	}
 
@@ -401,43 +392,34 @@ func (s *transactionService) StartCooking(ctx context.Context, req request.Start
 		return response.StartCooking{}, err
 	}
 
-	if retrievedData == nil {
-		return response.StartCooking{}, nil
-	}
-
-	transactionSchema, ok := retrievedData.(schema.Transaction)
-	if !ok {
-		return response.StartCooking{}, transaction.ErrorInvalidTransaction
-	}
-
-	if transactionSchema.OrderStatus != transaction.OrderStatusPending {
+	if retrievedData.Transaction.OrderStatus.Status != transaction.OrderStatusPending {
 		return response.StartCooking{}, transaction.ErrorInvalidOrderStatus
 	}
 
-	_, err = s.transactionRepository.UpdateTransactionCookingStatusStart(ctx, tx, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateTransactionCookingStatusStart(ctx, tx, retrievedData.Transaction.ID.String())
 	if err != nil {
 		return response.StartCooking{}, err
 	}
 
-	_, err = s.transactionRepository.UpdateCookedAt(ctx, tx, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateCookedAt(ctx, tx, retrievedData.Transaction.ID.String())
 	if err != nil {
 		return response.StartCooking{}, err
 	}
 
 	var orderResponses []response.OrderForTransaction
-	for _, orderSchema := range transactionSchema.Orders {
+	for _, orderQuery := range retrievedData.Orders {
 		orderResponses = append(orderResponses, response.OrderForTransaction{
 			Menu: response.MenuForTransaction{
-				ID:    orderSchema.Menu.ID.String(),
-				Name:  orderSchema.Menu.Name,
-				Price: orderSchema.Menu.Price.String(),
+				ID:    orderQuery.Menu.ID.String(),
+				Name:  orderQuery.Menu.Name,
+				Price: orderQuery.Menu.Price.Price.String(),
 			},
-			Quantity: orderSchema.Quantity,
+			Quantity: orderQuery.Order.Quantity,
 		})
 	}
 
 	return response.StartCooking{
-		QueueCode: *transactionSchema.QueueCode,
+		QueueCode: retrievedData.Transaction.QueueCode.Code,
 		Orders:    orderResponses,
 	}, nil
 }
@@ -448,38 +430,29 @@ func (s *transactionService) FinishCooking(ctx context.Context, req request.Fini
 		return response.FinishCooking{}, err
 	}
 
-	if retrievedData == nil {
-		return response.FinishCooking{}, nil
-	}
-
-	transactionSchema, ok := retrievedData.(schema.Transaction)
-	if !ok {
-		return response.FinishCooking{}, transaction.ErrorInvalidTransaction
-	}
-
-	if transactionSchema.OrderStatus != transaction.OrderStatusPreparing {
+	if retrievedData.Transaction.OrderStatus.Status != transaction.OrderStatusPreparing {
 		return response.FinishCooking{}, transaction.ErrorInvalidOrderStatus
 	}
 
-	_, err = s.transactionRepository.UpdateTransactionCookingStatusFinish(ctx, nil, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateTransactionCookingStatusFinish(ctx, nil, retrievedData.Transaction.ID.String())
 	if err != nil {
 		return response.FinishCooking{}, err
 	}
 
 	var orderResponses []response.OrderForTransaction
-	for _, orderSchema := range transactionSchema.Orders {
+	for _, orderQuery := range retrievedData.Orders {
 		orderResponses = append(orderResponses, response.OrderForTransaction{
 			Menu: response.MenuForTransaction{
-				ID:    orderSchema.Menu.ID.String(),
-				Name:  orderSchema.Menu.Name,
-				Price: orderSchema.Menu.Price.String(),
+				ID:    orderQuery.Menu.ID.String(),
+				Name:  orderQuery.Menu.Name,
+				Price: orderQuery.Menu.Price.Price.String(),
 			},
-			Quantity: orderSchema.Quantity,
+			Quantity: orderQuery.Order.Quantity,
 		})
 	}
 
 	return response.FinishCooking{
-		QueueCode: *transactionSchema.QueueCode,
+		QueueCode: retrievedData.Transaction.QueueCode.Code,
 		Orders:    orderResponses,
 	}, nil
 }
@@ -490,38 +463,29 @@ func (s *transactionService) StartDelivering(ctx context.Context, req request.St
 		return response.StartDelivering{}, err
 	}
 
-	if retrievedData == nil {
-		return response.StartDelivering{}, nil
-	}
-
-	transactionSchema, ok := retrievedData.(schema.Transaction)
-	if !ok {
-		return response.StartDelivering{}, transaction.ErrorInvalidTransaction
-	}
-
-	if transactionSchema.OrderStatus != transaction.OrderStatusReadyToServe {
+	if retrievedData.Transaction.OrderStatus.Status != transaction.OrderStatusReadyToServe {
 		return response.StartDelivering{}, transaction.ErrorInvalidOrderStatus
 	}
 
-	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusStart(ctx, nil, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusStart(ctx, nil, retrievedData.Transaction.ID.String())
 	if err != nil {
 		return response.StartDelivering{}, err
 	}
 
 	var orderResponses []response.OrderForTransaction
-	for _, orderSchema := range transactionSchema.Orders {
+	for _, orderQuery := range retrievedData.Orders {
 		orderResponses = append(orderResponses, response.OrderForTransaction{
 			Menu: response.MenuForTransaction{
-				ID:    orderSchema.Menu.ID.String(),
-				Name:  orderSchema.Menu.Name,
-				Price: orderSchema.Menu.Price.String(),
+				ID:    orderQuery.Menu.ID.String(),
+				Name:  orderQuery.Menu.Name,
+				Price: orderQuery.Menu.Price.Price.String(),
 			},
-			Quantity: orderSchema.Quantity,
+			Quantity: orderQuery.Order.Quantity,
 		})
 	}
 
 	return response.StartDelivering{
-		QueueCode: *transactionSchema.QueueCode,
+		QueueCode: retrievedData.Transaction.QueueCode.Code,
 		Orders:    orderResponses,
 	}, nil
 }
@@ -549,25 +513,16 @@ func (s *transactionService) FinishDelivering(ctx context.Context, req request.F
 		return response.FinishDelivering{}, err
 	}
 
-	if retrievedData == nil {
-		return response.FinishDelivering{}, nil
-	}
-
-	transactionSchema, ok := retrievedData.(schema.Transaction)
-	if !ok {
-		return response.FinishDelivering{}, transaction.ErrorInvalidTransaction
-	}
-
-	if transactionSchema.OrderStatus != transaction.OrderStatusDelivering {
+	if retrievedData.Transaction.OrderStatus.Status != transaction.OrderStatusDelivering {
 		return response.FinishDelivering{}, transaction.ErrorInvalidOrderStatus
 	}
 
-	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusFinish(ctx, nil, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateTransactionDeliveringStatusFinish(ctx, nil, retrievedData.Transaction.ID.String())
 	if err != nil {
 		return response.FinishDelivering{}, err
 	}
 
-	_, err = s.transactionRepository.UpdateServedAt(ctx, tx, transactionSchema.ID.String())
+	_, err = s.transactionRepository.UpdateServedAt(ctx, tx, retrievedData.Transaction.ID.String())
 	if err != nil {
 		return response.FinishDelivering{}, err
 	}
