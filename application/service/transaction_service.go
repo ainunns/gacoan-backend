@@ -14,8 +14,6 @@ import (
 	"fp-kpl/domain/user"
 	"fp-kpl/infrastructure/database/validation"
 	"fp-kpl/platform/pagination"
-	"time"
-
 	"github.com/google/uuid"
 )
 
@@ -224,18 +222,7 @@ func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Contex
 		}
 
 		maxCookingTime := s.transactionDomainService.CalculateMaxCookingTime(transactionQuery.Orders)
-
-		now := time.Now()
-		isDelayed := false
-
-		if transactionQuery.Transaction.CookedAt != nil {
-			expectedFinishTime := transactionQuery.Transaction.CookedAt.Add(maxCookingTime)
-			if transactionQuery.Transaction.ServedAt != nil {
-				isDelayed = transactionQuery.Transaction.ServedAt.After(expectedFinishTime)
-			} else {
-				isDelayed = now.After(expectedFinishTime)
-			}
-		}
+		isDelayed := s.transactionDomainService.GetOrderDelayStatus(maxCookingTime, transactionQuery.Transaction.CookedAt, transactionQuery.Transaction.ServedAt)
 
 		data = append(data, response.Transaction{
 			ID:           transactionQuery.Transaction.ID.String(),
@@ -277,18 +264,7 @@ func (s *transactionService) GetTransactionByID(ctx context.Context, id string) 
 	}
 
 	maxCookingTime := s.transactionDomainService.CalculateMaxCookingTime(retrievedData.Orders)
-
-	now := time.Now()
-	isDelayed := false
-
-	if retrievedData.Transaction.CookedAt != nil {
-		expectedFinishTime := retrievedData.Transaction.CookedAt.Add(maxCookingTime)
-		if retrievedData.Transaction.ServedAt != nil {
-			isDelayed = retrievedData.Transaction.ServedAt.After(expectedFinishTime)
-		} else {
-			isDelayed = now.After(expectedFinishTime)
-		}
-	}
+	isDelayed := s.transactionDomainService.GetOrderDelayStatus(maxCookingTime, retrievedData.Transaction.CookedAt, retrievedData.Transaction.ServedAt)
 
 	return response.Transaction{
 		ID:           retrievedData.Transaction.ID.String(),
