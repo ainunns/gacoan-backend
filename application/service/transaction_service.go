@@ -34,14 +34,15 @@ type (
 	}
 
 	transactionService struct {
-		transactionRepository transaction.Repository
-		userRepository        user.Repository
-		tableRepository       table.Repository
-		orderRepository       order.Repository
-		menuRepository        menu.Repository
-		paymentGatewayPort    port.PaymentGatewayPort
-		transaction           interface{}
-		orderService          OrderService
+		transactionRepository    transaction.Repository
+		userRepository           user.Repository
+		tableRepository          table.Repository
+		orderRepository          order.Repository
+		menuRepository           menu.Repository
+		transactionDomainService transaction.Service
+		paymentGatewayPort       port.PaymentGatewayPort
+		transaction              interface{}
+		orderService             OrderService
 	}
 )
 
@@ -51,19 +52,21 @@ func NewTransactionService(
 	tableRepository table.Repository,
 	orderRepository order.Repository,
 	menuRepository menu.Repository,
+	transactionDomainService transaction.Service,
 	paymentGatewayPort port.PaymentGatewayPort,
 	transaction interface{},
 	orderService OrderService,
 ) TransactionService {
 	return &transactionService{
-		transactionRepository: transactionRepository,
-		userRepository:        userRepository,
-		tableRepository:       tableRepository,
-		orderRepository:       orderRepository,
-		menuRepository:        menuRepository,
-		paymentGatewayPort:    paymentGatewayPort,
-		transaction:           transaction,
-		orderService:          orderService,
+		transactionRepository:    transactionRepository,
+		userRepository:           userRepository,
+		tableRepository:          tableRepository,
+		orderRepository:          orderRepository,
+		menuRepository:           menuRepository,
+		transactionDomainService: transactionDomainService,
+		paymentGatewayPort:       paymentGatewayPort,
+		transaction:              transaction,
+		orderService:             orderService,
 	}
 }
 
@@ -220,7 +223,7 @@ func (s *transactionService) GetAllTransactionsWithPagination(ctx context.Contex
 			})
 		}
 
-		maxCookingTime := s.calculateMaxCookingTime(transactionQuery.Orders)
+		maxCookingTime := s.transactionDomainService.CalculateMaxCookingTime(transactionQuery.Orders)
 
 		now := time.Now()
 		isDelayed := false
@@ -273,7 +276,7 @@ func (s *transactionService) GetTransactionByID(ctx context.Context, id string) 
 		})
 	}
 
-	maxCookingTime := s.calculateMaxCookingTime(retrievedData.Orders)
+	maxCookingTime := s.transactionDomainService.CalculateMaxCookingTime(retrievedData.Orders)
 
 	now := time.Now()
 	isDelayed := false
@@ -342,18 +345,6 @@ func (s *transactionService) GetAllReadyToServeTransactionList(ctx context.Conte
 		Data:     data,
 		Response: retrievedData.Response,
 	}, nil
-}
-
-func (s *transactionService) calculateMaxCookingTime(orders []transaction.OrderQuery) time.Duration {
-	maxCookingTime := time.Duration(0)
-
-	for _, orderQuery := range orders {
-		if orderQuery.Menu.CookingTime > maxCookingTime {
-			maxCookingTime = orderQuery.Menu.CookingTime
-		}
-	}
-
-	return maxCookingTime
 }
 
 func (s *transactionService) GetNextOrder(ctx context.Context) (response.NextOrder, error) {

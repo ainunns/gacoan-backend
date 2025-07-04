@@ -2,6 +2,7 @@ package transaction
 
 import (
 	"context"
+	"time"
 
 	"fmt"
 )
@@ -9,6 +10,7 @@ import (
 type (
 	Service interface {
 		GenerateQueueCode(ctx context.Context, transactionID string) (string, error)
+		CalculateMaxCookingTime(orders []OrderQuery) time.Duration
 	}
 
 	service struct {
@@ -29,4 +31,16 @@ func (s *service) GenerateQueueCode(ctx context.Context, transactionID string) (
 	}
 
 	return latestCode, nil
+}
+
+func (s *service) CalculateMaxCookingTime(orders []OrderQuery) time.Duration {
+	maxCookingTime := time.Duration(0)
+
+	for _, orderQuery := range orders {
+		if orderQuery.Menu.CookingTime > maxCookingTime {
+			maxCookingTime = orderQuery.Menu.CookingTime
+		}
+	}
+
+	return maxCookingTime
 }

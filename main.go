@@ -75,7 +75,7 @@ func main() {
 	categoryService := service.NewCategoryService(categoryRepository)
 	menuService := service.NewMenuService(menuRepository, categoryRepository)
 	orderService := service.NewOrderService(orderRepository, menuRepository, orderDomainService)
-	transactionService := service.NewTransactionService(transactionRepository, userRepository, tableRepository, orderRepository, menuRepository, paymentGateway, dbTransactionRepository, orderService)
+	transactionService := service.NewTransactionService(transactionRepository, userRepository, tableRepository, orderRepository, menuRepository, transactionDomainService, paymentGateway, dbTransactionRepository, orderService)
 
 	userController := controller.NewUserController(userService)
 	tableController := controller.NewTableController(tableService)
