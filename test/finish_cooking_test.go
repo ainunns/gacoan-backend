@@ -6,13 +6,14 @@ import (
 	"fp-kpl/application/response"
 	"fp-kpl/application/service"
 	"fp-kpl/domain/identity"
+	menu "fp-kpl/domain/menu/menu_item"
 	menu_item "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/platform/pagination"
 	"testing"
 
@@ -27,9 +28,12 @@ type MockTransactionRepositoryForFinishCooking struct {
 	mock.Mock
 }
 
-func (m *MockTransactionRepositoryForFinishCooking) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
+func (m *MockTransactionRepositoryForFinishCooking) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
 	args := m.Called(ctx, tx, queueCode)
-	return args.Get(0), args.Error(1)
+	if args.Get(0) == nil {
+		return transaction.Query{}, args.Error(1)
+	}
+	return args.Get(0).(transaction.Query), args.Error(1)
 }
 
 func (m *MockTransactionRepositoryForFinishCooking) UpdateTransactionCookingStatusFinish(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
@@ -69,7 +73,13 @@ func (m *MockTransactionRepositoryForFinishCooking) UpdateTransactionDeliveringS
 	return transaction.Transaction{}, nil
 }
 func (m *MockTransactionRepositoryForFinishCooking) UpdateServedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
-	return transaction.Transaction{}, nil
+	args := m.Called(ctx, tx, transactionID)
+	return args.Get(0).(transaction.Transaction), args.Error(1)
+}
+
+func (m *MockTransactionRepositoryForFinishCooking) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	args := m.Called(ctx, tx, id)
+	return args.Get(0).(transaction.Query), args.Error(1)
 }
 
 // Mocks for other repositories (minimal, not used in these tests)
@@ -148,6 +158,13 @@ func (m *MockTransactionInterfaceForFinishCooking) DB() interface{} {
 	return args.Get(0)
 }
 
+type MockOrderServiceForFinishCooking struct{ mock.Mock }
+
+func (m *MockOrderServiceForFinishCooking) CalculateTotalPrice(ctx context.Context, orders []request.Order) (shared.Price, error) {
+	args := m.Called(ctx, orders)
+	return args.Get(0).(shared.Price), args.Error(1)
+}
+
 func TestFinishCooking_Success(t *testing.T) {
 	mockTransactionRepo := new(MockTransactionRepositoryForFinishCooking)
 	mockUserRepo := new(MockUserRepositoryForFinishCooking)
@@ -156,6 +173,7 @@ func TestFinishCooking_Success(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -163,28 +181,31 @@ func TestFinishCooking_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
 	queueCode := "Q0001"
 	transactionID := uuid.New()
 
-	// Create a proper schema.Transaction
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusPreparing,
-		QueueCode:   &queueCode,
-		Orders:      []schema.Order{}, // Empty orders for this test
+	// Create a proper transaction.Query
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(transactionID),
+			OrderStatus: transaction.OrderStatus{Status: transaction.OrderStatusPreparing},
+			QueueCode:   transaction.QueueCode{Code: queueCode},
+		},
+		Orders: []transaction.OrderQuery{}, // Empty orders for this test
 	}
 
 	transactionEntity := transaction.Transaction{
 		ID: identity.NewID(transactionID),
 	}
 
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 	mockTransactionRepo.On("UpdateTransactionCookingStatusFinish", ctx, nil, transactionID.String()).Return(transactionEntity, nil)
 
 	req := request.FinishCooking{QueueCode: queueCode}
@@ -203,6 +224,7 @@ func TestFinishCooking_TransactionNotFound(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -210,20 +232,21 @@ func TestFinishCooking_TransactionNotFound(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
 	queueCode := "Q0001"
 
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(nil, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(nil, assert.AnError)
 
 	req := request.FinishCooking{QueueCode: queueCode}
 	result, err := transactionService.FinishCooking(ctx, req)
 
-	assert.NoError(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, response.FinishCooking{}, result)
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -236,6 +259,7 @@ func TestFinishCooking_InvalidTransactionType(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -243,24 +267,21 @@ func TestFinishCooking_InvalidTransactionType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
 	queueCode := "Q0001"
 
-	// Return invalid type
-	invalidData := "invalid data"
-
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(invalidData, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(nil, assert.AnError)
 
 	req := request.FinishCooking{QueueCode: queueCode}
 	result, err := transactionService.FinishCooking(ctx, req)
 
 	assert.Error(t, err)
-	assert.Equal(t, transaction.ErrorInvalidTransaction, err)
 	assert.Equal(t, response.FinishCooking{}, result)
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -273,6 +294,7 @@ func TestFinishCooking_InvalidOrderStatus(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -280,9 +302,10 @@ func TestFinishCooking_InvalidOrderStatus(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -290,14 +313,16 @@ func TestFinishCooking_InvalidOrderStatus(t *testing.T) {
 	transactionID := uuid.New()
 
 	// Create transaction with wrong status
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusPending, // Wrong status
-		QueueCode:   &queueCode,
-		Orders:      []schema.Order{},
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(transactionID),
+			OrderStatus: transaction.OrderStatus{Status: transaction.OrderStatusPending}, // Wrong status
+			QueueCode:   transaction.QueueCode{Code: queueCode},
+		},
+		Orders: []transaction.OrderQuery{},
 	}
 
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 
 	req := request.FinishCooking{QueueCode: queueCode}
 	result, err := transactionService.FinishCooking(ctx, req)
@@ -316,6 +341,7 @@ func TestFinishCooking_GetTransactionError(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -323,9 +349,10 @@ func TestFinishCooking_GetTransactionError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -350,6 +377,7 @@ func TestFinishCooking_UpdateStatusError(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -357,23 +385,27 @@ func TestFinishCooking_UpdateStatusError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
 	queueCode := "Q0001"
 	transactionID := uuid.New()
 
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusPreparing,
-		QueueCode:   &queueCode,
-		Orders:      []schema.Order{},
+	// Create transaction with correct status
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(transactionID),
+			OrderStatus: transaction.OrderStatus{Status: transaction.OrderStatusPreparing},
+			QueueCode:   transaction.QueueCode{Code: queueCode},
+		},
+		Orders: []transaction.OrderQuery{},
 	}
 
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 	mockTransactionRepo.On("UpdateTransactionCookingStatusFinish", ctx, nil, transactionID.String()).Return(transaction.Transaction{}, assert.AnError)
 
 	req := request.FinishCooking{QueueCode: queueCode}
@@ -393,6 +425,7 @@ func TestFinishCooking_WithMultipleOrders(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForFinishCooking)
 	mockPaymentGateway := new(MockPaymentGatewayPortForFinishCooking)
 	mockTransactionInterface := new(MockTransactionInterfaceForFinishCooking)
+	mockOrderService := new(MockOrderServiceForFinishCooking)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -400,43 +433,44 @@ func TestFinishCooking_WithMultipleOrders(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
 	queueCode := "Q0001"
 	transactionID := uuid.New()
-	menuID1 := uuid.New()
-	menuID2 := uuid.New()
 
 	// Create transaction with multiple orders
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusPreparing,
-		QueueCode:   &queueCode,
-		Orders: []schema.Order{
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(transactionID),
+			OrderStatus: transaction.OrderStatus{Status: transaction.OrderStatusPreparing},
+			QueueCode:   transaction.QueueCode{Code: queueCode},
+		},
+		Orders: []transaction.OrderQuery{
 			{
-				ID:            uuid.New(),
-				TransactionID: transactionID,
-				MenuID:        menuID1,
-				Quantity:      2,
-				Menu: &schema.Menu{
-					ID:    menuID1,
-					Name:  "Nasi Goreng",
-					Price: decimal.NewFromFloat(15000),
+				Order: order.Order{
+					ID:       identity.NewID(uuid.New()),
+					Quantity: 2,
+				},
+				Menu: menu.Menu{
+					ID:    identity.NewID(uuid.New()),
+					Name:  "Burger",
+					Price: shared.Price{Price: decimal.NewFromInt(25000)},
 				},
 			},
 			{
-				ID:            uuid.New(),
-				TransactionID: transactionID,
-				MenuID:        menuID2,
-				Quantity:      1,
-				Menu: &schema.Menu{
-					ID:    menuID2,
-					Name:  "Es Teh",
-					Price: decimal.NewFromFloat(5000),
+				Order: order.Order{
+					ID:       identity.NewID(uuid.New()),
+					Quantity: 1,
+				},
+				Menu: menu.Menu{
+					ID:    identity.NewID(uuid.New()),
+					Name:  "Fries",
+					Price: shared.Price{Price: decimal.NewFromInt(15000)},
 				},
 			},
 		},
@@ -446,7 +480,7 @@ func TestFinishCooking_WithMultipleOrders(t *testing.T) {
 		ID: identity.NewID(transactionID),
 	}
 
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 	mockTransactionRepo.On("UpdateTransactionCookingStatusFinish", ctx, nil, transactionID.String()).Return(transactionEntity, nil)
 
 	req := request.FinishCooking{QueueCode: queueCode}
@@ -455,11 +489,11 @@ func TestFinishCooking_WithMultipleOrders(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, queueCode, result.QueueCode)
 	assert.Len(t, result.Orders, 2)
-	assert.Equal(t, "Nasi Goreng", result.Orders[0].Menu.Name)
-	assert.Equal(t, "15000", result.Orders[0].Menu.Price)
+	assert.Equal(t, "Burger", result.Orders[0].Menu.Name)
+	assert.Equal(t, "25000", result.Orders[0].Menu.Price)
 	assert.Equal(t, 2, result.Orders[0].Quantity)
-	assert.Equal(t, "Es Teh", result.Orders[1].Menu.Name)
-	assert.Equal(t, "5000", result.Orders[1].Menu.Price)
+	assert.Equal(t, "Fries", result.Orders[1].Menu.Name)
+	assert.Equal(t, "15000", result.Orders[1].Menu.Price)
 	assert.Equal(t, 1, result.Orders[1].Quantity)
 	mockTransactionRepo.AssertExpectations(t)
 }

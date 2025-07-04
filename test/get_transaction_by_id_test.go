@@ -2,15 +2,17 @@ package test
 
 import (
 	"context"
+	"fp-kpl/application/request"
 	"fp-kpl/application/response"
 	"fp-kpl/application/service"
+	"fp-kpl/domain/identity"
 	menu "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/platform/pagination"
 	"testing"
 	"time"
@@ -86,9 +88,13 @@ func (m *MockTransactionRepositoryForGetByID) UpdateServedAt(ctx context.Context
 	return args.Get(0).(transaction.Transaction), args.Error(1)
 }
 
-func (m *MockTransactionRepositoryForGetByID) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
-	args := m.Called(ctx, tx, queueCode)
-	return args.Get(0), args.Error(1)
+func (m *MockTransactionRepositoryForGetByID) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
+	return transaction.Query{}, nil
+}
+
+func (m *MockTransactionRepositoryForGetByID) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	args := m.Called(ctx, tx, id)
+	return args.Get(0).(transaction.Query), args.Error(1)
 }
 
 // Mock other repositories
@@ -187,6 +193,30 @@ func (m *MockPaymentGatewayPortForGetByID) HookPayment(ctx context.Context, tx i
 	return args.Error(0)
 }
 
+type MockOrderServiceForGetByID struct{ mock.Mock }
+
+func (m *MockOrderServiceForGetByID) CalculateTotalPrice(ctx context.Context, orders []request.Order) (shared.Price, error) {
+	args := m.Called(ctx, orders)
+	return args.Get(0).(shared.Price), args.Error(1)
+}
+
+type MockTransactionDomainServiceForGetByID struct{ mock.Mock }
+
+func (m *MockTransactionDomainServiceForGetByID) GenerateQueueCode(ctx context.Context, transactionID string) (string, error) {
+	args := m.Called(ctx, transactionID)
+	return args.Get(0).(string), args.Error(1)
+}
+
+func (m *MockTransactionDomainServiceForGetByID) CalculateMaxCookingTime(orders []transaction.OrderQuery) time.Duration {
+	args := m.Called(orders)
+	return args.Get(0).(time.Duration)
+}
+
+func (m *MockTransactionDomainServiceForGetByID) GetOrderDelayStatus(maxCookingTime time.Duration, cookedAt *time.Time, servedAt *time.Time) bool {
+	args := m.Called(maxCookingTime, cookedAt, servedAt)
+	return args.Get(0).(bool)
+}
+
 func TestGetTransactionByID_Success(t *testing.T) {
 	// Arrange
 	mockTransactionRepo := new(MockTransactionRepositoryForGetByID)
@@ -195,6 +225,8 @@ func TestGetTransactionByID_Success(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
+	mockOrderService := new(MockOrderServiceForGetByID)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -202,9 +234,10 @@ func TestGetTransactionByID_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
-		nil, // transaction interface
-		nil, // orderService
+		nil, // interface{} - using nil for now
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -213,51 +246,55 @@ func TestGetTransactionByID_Success(t *testing.T) {
 	tableID := uuid.New().String()
 	menuID := uuid.New().String()
 
-	// Mock transaction schema
-	transactionSchema := schema.Transaction{
-		ID:            uuid.MustParse(transactionID),
-		UserID:        uuid.MustParse(userID),
-		TableID:       uuid.MustParse(tableID),
-		PaymentCode:   "PAY123",
-		PaymentStatus: "settlement",
-		OrderStatus:   "pending",
-		QueueCode:     stringPtr("Q0001"),
-		TotalPrice:    decimal.NewFromInt(65000),
-		CookedAt:      timePtr(time.Now().Add(-30 * time.Minute)),
-		ServedAt:      nil,
-		CreatedAt:     time.Now().Add(-1 * time.Hour),
-		UpdatedAt:     time.Now().Add(-30 * time.Minute),
-		Table: &schema.Table{
-			ID:          uuid.MustParse(tableID),
-			TableNumber: "A1",
+	// Create transaction.Query instead of schema.Transaction
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(uuid.MustParse(transactionID)),
+			UserID:      identity.NewID(uuid.MustParse(userID)),
+			TableID:     identity.NewID(uuid.MustParse(tableID)),
+			QueueCode:   transaction.QueueCode{Code: "Q0001"},
+			OrderStatus: transaction.OrderStatus{Status: "pending"},
+			TotalPrice:  shared.Price{Price: decimal.NewFromInt(65000)},
+			CookedAt:    timePtr(time.Now().Add(-30 * time.Minute)),
+			ServedAt:    nil,
 		},
-		Orders: []schema.Order{
+		Orders: []transaction.OrderQuery{
 			{
-				ID: uuid.New(),
-				Menu: &schema.Menu{
-					ID:    uuid.MustParse(menuID),
+				Order: order.Order{
+					ID:       identity.NewID(uuid.New()),
+					Quantity: 2,
+				},
+				Menu: menu.Menu{
+					ID:    identity.NewID(uuid.MustParse(menuID)),
 					Name:  "Burger",
-					Price: decimal.NewFromInt(25000),
+					Price: shared.Price{Price: decimal.NewFromInt(25000)},
 				},
-				Quantity: 2,
 			},
 			{
-				ID: uuid.New(),
-				Menu: &schema.Menu{
-					ID:    uuid.New(),
-					Name:  "Fries",
-					Price: decimal.NewFromInt(15000),
+				Order: order.Order{
+					ID:       identity.NewID(uuid.New()),
+					Quantity: 1,
 				},
-				Quantity: 1,
+				Menu: menu.Menu{
+					ID:    identity.NewID(uuid.New()),
+					Name:  "Fries",
+					Price: shared.Price{Price: decimal.NewFromInt(15000)},
+				},
 			},
+		},
+		Table: table.Table{
+			ID:          identity.NewID(uuid.MustParse(tableID)),
+			TableNumber: "A1",
 		},
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByID", ctx, nil, userID, transactionID).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetDetailedTransactionByID", ctx, nil, transactionID).Return(transactionQuery, nil)
+	mockTransactionDomainService.On("CalculateMaxCookingTime", transactionQuery.Orders).Return(45 * time.Minute)
+	mockTransactionDomainService.On("GetOrderDelayStatus", 45*time.Minute, transactionQuery.Transaction.CookedAt, transactionQuery.Transaction.ServedAt).Return(true)
 
 	// Act
-	result, err := transactionService.GetTransactionByID(ctx, userID, transactionID)
+	result, err := transactionService.GetTransactionByID(ctx, transactionID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -285,6 +322,7 @@ func TestGetTransactionByID_Success(t *testing.T) {
 	assert.True(t, result.IsDelayed)
 
 	mockTransactionRepo.AssertExpectations(t)
+	mockTransactionDomainService.AssertExpectations(t)
 }
 
 func TestGetTransactionByID_Success_NotDelayed(t *testing.T) {
@@ -295,6 +333,8 @@ func TestGetTransactionByID_Success_NotDelayed(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
+	mockOrderService := new(MockOrderServiceForGetByID)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -302,9 +342,10 @@ func TestGetTransactionByID_Success_NotDelayed(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
-		nil,
-		nil,
+		nil, // interface{} - using nil for now
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -316,42 +357,44 @@ func TestGetTransactionByID_Success_NotDelayed(t *testing.T) {
 	cookedAt := time.Now().Add(-10 * time.Minute)
 	servedAt := time.Now().Add(-5 * time.Minute)
 
-	transactionSchema := schema.Transaction{
-		ID:            uuid.MustParse(transactionID),
-		UserID:        uuid.MustParse(userID),
-		TableID:       uuid.MustParse(tableID),
-		PaymentCode:   "PAY123",
-		PaymentStatus: "settlement",
-		OrderStatus:   "served",
-		QueueCode:     stringPtr("Q0002"),
-		TotalPrice:    decimal.NewFromInt(45000),
-		CookedAt:      &cookedAt,
-		ServedAt:      &servedAt,
-		CreatedAt:     time.Now().Add(-1 * time.Hour),
-		UpdatedAt:     time.Now().Add(-5 * time.Minute),
-		Table: &schema.Table{
-			ID:          uuid.MustParse(tableID),
-			TableNumber: "B2",
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(uuid.MustParse(transactionID)),
+			UserID:      identity.NewID(uuid.MustParse(userID)),
+			TableID:     identity.NewID(uuid.MustParse(tableID)),
+			QueueCode:   transaction.QueueCode{Code: "Q0002"},
+			OrderStatus: transaction.OrderStatus{Status: "served"},
+			TotalPrice:  shared.Price{Price: decimal.NewFromInt(45000)},
+			CookedAt:    &cookedAt,
+			ServedAt:    &servedAt,
 		},
-		Orders: []schema.Order{
+		Orders: []transaction.OrderQuery{
 			{
-				ID: uuid.New(),
-				Menu: &schema.Menu{
-					ID:          uuid.New(),
-					Name:        "Pizza",
-					Price:       decimal.NewFromInt(45000),
-					CookingTime: schema.Duration{Duration: 45 * time.Minute},
+				Order: order.Order{
+					ID:       identity.NewID(uuid.New()),
+					Quantity: 1,
 				},
-				Quantity: 1,
+				Menu: menu.Menu{
+					ID:          identity.NewID(uuid.New()),
+					Name:        "Pizza",
+					Price:       shared.Price{Price: decimal.NewFromInt(45000)},
+					CookingTime: 45 * time.Minute,
+				},
 			},
+		},
+		Table: table.Table{
+			ID:          identity.NewID(uuid.MustParse(tableID)),
+			TableNumber: "B2",
 		},
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByID", ctx, nil, userID, transactionID).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetDetailedTransactionByID", ctx, nil, transactionID).Return(transactionQuery, nil)
+	mockTransactionDomainService.On("CalculateMaxCookingTime", transactionQuery.Orders).Return(45 * time.Minute)
+	mockTransactionDomainService.On("GetOrderDelayStatus", 45*time.Minute, &cookedAt, &servedAt).Return(false)
 
 	// Act
-	result, err := transactionService.GetTransactionByID(ctx, userID, transactionID)
+	result, err := transactionService.GetTransactionByID(ctx, transactionID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -370,6 +413,7 @@ func TestGetTransactionByID_Success_NotDelayed(t *testing.T) {
 	assert.False(t, result.IsDelayed)
 
 	mockTransactionRepo.AssertExpectations(t)
+	mockTransactionDomainService.AssertExpectations(t)
 }
 
 func TestGetTransactionByID_TransactionNotFound(t *testing.T) {
@@ -380,6 +424,8 @@ func TestGetTransactionByID_TransactionNotFound(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
+	mockOrderService := new(MockOrderServiceForGetByID)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -387,20 +433,20 @@ func TestGetTransactionByID_TransactionNotFound(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
-		nil,
-		nil,
+		nil, // interface{} - using nil for now
+		mockOrderService,
 	)
 
 	ctx := context.Background()
-	userID := uuid.New().String()
 	transactionID := uuid.New().String()
 
 	// Set up expectations - transaction not found
-	mockTransactionRepo.On("GetTransactionByID", ctx, nil, userID, transactionID).Return(nil, assert.AnError)
+	mockTransactionRepo.On("GetDetailedTransactionByID", ctx, nil, transactionID).Return(transaction.Query{}, assert.AnError)
 
 	// Act
-	result, err := transactionService.GetTransactionByID(ctx, userID, transactionID)
+	result, err := transactionService.GetTransactionByID(ctx, transactionID)
 
 	// Assert
 	assert.Error(t, err)
@@ -417,6 +463,8 @@ func TestGetTransactionByID_InvalidTransactionType(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
+	mockOrderService := new(MockOrderServiceForGetByID)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -424,24 +472,23 @@ func TestGetTransactionByID_InvalidTransactionType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
-		nil,
-		nil,
+		nil, // interface{} - using nil for now
+		mockOrderService,
 	)
 
 	ctx := context.Background()
-	userID := uuid.New().String()
 	transactionID := uuid.New().String()
 
-	// Set up expectations - return invalid type
-	mockTransactionRepo.On("GetTransactionByID", ctx, nil, userID, transactionID).Return("invalid_type", nil)
+	// Set up expectations - return error for invalid transaction
+	mockTransactionRepo.On("GetDetailedTransactionByID", ctx, nil, transactionID).Return(transaction.Query{}, assert.AnError)
 
 	// Act
-	result, err := transactionService.GetTransactionByID(ctx, userID, transactionID)
+	result, err := transactionService.GetTransactionByID(ctx, transactionID)
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, transaction.ErrorInvalidTransaction, err)
 	assert.Equal(t, response.Transaction{}, result)
 
 	mockTransactionRepo.AssertExpectations(t)
@@ -455,6 +502,8 @@ func TestGetTransactionByID_EmptyOrders(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
+	mockOrderService := new(MockOrderServiceForGetByID)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -462,9 +511,10 @@ func TestGetTransactionByID_EmptyOrders(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
-		nil,
-		nil,
+		nil, // interface{} - using nil for now
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -473,31 +523,31 @@ func TestGetTransactionByID_EmptyOrders(t *testing.T) {
 	tableID := uuid.New().String()
 
 	// Mock transaction schema with no orders
-	transactionSchema := schema.Transaction{
-		ID:            uuid.MustParse(transactionID),
-		UserID:        uuid.MustParse(userID),
-		TableID:       uuid.MustParse(tableID),
-		PaymentCode:   "PAY123",
-		PaymentStatus: "settlement",
-		OrderStatus:   "pending",
-		QueueCode:     stringPtr("Q0003"),
-		TotalPrice:    decimal.NewFromInt(0),
-		CookedAt:      nil,
-		ServedAt:      nil,
-		CreatedAt:     time.Now().Add(-30 * time.Minute),
-		UpdatedAt:     time.Now().Add(-30 * time.Minute),
-		Table: &schema.Table{
-			ID:          uuid.MustParse(tableID),
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(uuid.MustParse(transactionID)),
+			UserID:      identity.NewID(uuid.MustParse(userID)),
+			TableID:     identity.NewID(uuid.MustParse(tableID)),
+			QueueCode:   transaction.QueueCode{Code: "Q0003"},
+			OrderStatus: transaction.OrderStatus{Status: "pending"},
+			TotalPrice:  shared.Price{Price: decimal.NewFromInt(0)},
+			CookedAt:    nil,
+			ServedAt:    nil,
+		},
+		Orders: []transaction.OrderQuery{}, // Empty orders
+		Table: table.Table{
+			ID:          identity.NewID(uuid.MustParse(tableID)),
 			TableNumber: "C3",
 		},
-		Orders: []schema.Order{}, // Empty orders
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByID", ctx, nil, userID, transactionID).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetDetailedTransactionByID", ctx, nil, transactionID).Return(transactionQuery, nil)
+	mockTransactionDomainService.On("CalculateMaxCookingTime", transactionQuery.Orders).Return(0 * time.Minute)
+	mockTransactionDomainService.On("GetOrderDelayStatus", 0*time.Minute, (*time.Time)(nil), (*time.Time)(nil)).Return(false)
 
 	// Act
-	result, err := transactionService.GetTransactionByID(ctx, userID, transactionID)
+	result, err := transactionService.GetTransactionByID(ctx, transactionID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -511,6 +561,7 @@ func TestGetTransactionByID_EmptyOrders(t *testing.T) {
 	assert.False(t, result.IsDelayed) // No cooking time to calculate delay
 
 	mockTransactionRepo.AssertExpectations(t)
+	mockTransactionDomainService.AssertExpectations(t)
 }
 
 func TestGetTransactionByID_WithDecimalPrices(t *testing.T) {
@@ -521,6 +572,8 @@ func TestGetTransactionByID_WithDecimalPrices(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForTransaction)
 	mockMenuRepo := new(MockMenuRepositoryForTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForGetByID)
+	mockOrderService := new(MockOrderServiceForGetByID)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForGetByID)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -528,9 +581,10 @@ func TestGetTransactionByID_WithDecimalPrices(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
-		nil,
-		nil,
+		nil, // interface{} - using nil for now
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -539,42 +593,44 @@ func TestGetTransactionByID_WithDecimalPrices(t *testing.T) {
 	tableID := uuid.New().String()
 
 	// Mock transaction schema with decimal prices
-	transactionSchema := schema.Transaction{
-		ID:            uuid.MustParse(transactionID),
-		UserID:        uuid.MustParse(userID),
-		TableID:       uuid.MustParse(tableID),
-		PaymentCode:   "PAY123",
-		PaymentStatus: "settlement",
-		OrderStatus:   "pending",
-		QueueCode:     stringPtr("Q0004"),
-		TotalPrice:    decimal.NewFromFloat(12500.50),
-		CookedAt:      nil,
-		ServedAt:      nil,
-		CreatedAt:     time.Now().Add(-30 * time.Minute),
-		UpdatedAt:     time.Now().Add(-30 * time.Minute),
-		Table: &schema.Table{
-			ID:          uuid.MustParse(tableID),
-			TableNumber: "D4",
+	transactionQuery := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:          identity.NewID(uuid.MustParse(transactionID)),
+			UserID:      identity.NewID(uuid.MustParse(userID)),
+			TableID:     identity.NewID(uuid.MustParse(tableID)),
+			QueueCode:   transaction.QueueCode{Code: "Q0004"},
+			OrderStatus: transaction.OrderStatus{Status: "pending"},
+			TotalPrice:  shared.Price{Price: decimal.NewFromFloat(12500.50)},
+			CookedAt:    nil,
+			ServedAt:    nil,
 		},
-		Orders: []schema.Order{
+		Orders: []transaction.OrderQuery{
 			{
-				ID: uuid.New(),
-				Menu: &schema.Menu{
-					ID:          uuid.New(),
-					Name:        "Premium Coffee",
-					Price:       decimal.NewFromFloat(12500.50),
-					CookingTime: schema.Duration{Duration: 5 * time.Minute},
+				Order: order.Order{
+					ID:       identity.NewID(uuid.New()),
+					Quantity: 1,
 				},
-				Quantity: 1,
+				Menu: menu.Menu{
+					ID:          identity.NewID(uuid.New()),
+					Name:        "Premium Coffee",
+					Price:       shared.Price{Price: decimal.NewFromFloat(12500.50)},
+					CookingTime: 5 * time.Minute,
+				},
 			},
+		},
+		Table: table.Table{
+			ID:          identity.NewID(uuid.MustParse(tableID)),
+			TableNumber: "D4",
 		},
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByID", ctx, nil, userID, transactionID).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetDetailedTransactionByID", ctx, nil, transactionID).Return(transactionQuery, nil)
+	mockTransactionDomainService.On("CalculateMaxCookingTime", transactionQuery.Orders).Return(5 * time.Minute)
+	mockTransactionDomainService.On("GetOrderDelayStatus", 5*time.Minute, (*time.Time)(nil), (*time.Time)(nil)).Return(false)
 
 	// Act
-	result, err := transactionService.GetTransactionByID(ctx, userID, transactionID)
+	result, err := transactionService.GetTransactionByID(ctx, transactionID)
 
 	// Assert
 	assert.NoError(t, err)
@@ -591,11 +647,7 @@ func TestGetTransactionByID_WithDecimalPrices(t *testing.T) {
 	assert.False(t, result.IsDelayed) // Not cooked yet
 
 	mockTransactionRepo.AssertExpectations(t)
-}
-
-// Helper functions
-func stringPtr(s string) *string {
-	return &s
+	mockTransactionDomainService.AssertExpectations(t)
 }
 
 func timePtr(t time.Time) *time.Time {
