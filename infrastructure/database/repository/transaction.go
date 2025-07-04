@@ -79,12 +79,23 @@ func (r *transactionRepository) GetAllTransactionsWithPagination(ctx context.Con
 		return pagination.ResponseWithData{}, err
 	}
 
+	transactionQueries := make([]transaction.Query, len(transactionSchemas))
+	for i, transactionSchema := range transactionSchemas {
+		transactionQueries[i].Transaction = schema.TransactionSchemaToEntity(transactionSchema)
+		for j, orderSchema := range transactionSchema.Orders {
+			transactionQueries[i].Orders = append(transactionQueries[i].Orders, transaction.OrderQuery{
+				Order: schema.OrderSchemaToEntity(orderSchema),
+			})
+			transactionQueries[i].Orders[j].Menu = schema.MenuSchemaToEntity(*orderSchema.Menu)
+		}
+		transactionQueries[i].Table = schema.TableSchemaToEntity(*transactionSchema.Table)
+	}
+
 	totalPage := pagination.TotalPage(count, int64(req.PerPage))
 
-	// Return schema data directly to avoid N+1 queries
-	data := make([]any, len(transactionSchemas))
-	for i, transactionSchema := range transactionSchemas {
-		data[i] = transactionSchema
+	data := make([]any, len(transactionQueries))
+	for i, transactionQuery := range transactionQueries {
+		data[i] = transactionQuery
 	}
 
 	return pagination.ResponseWithData{
@@ -136,11 +147,23 @@ func (r *transactionRepository) GetAllReadyToServeTransactionList(ctx context.Co
 		return pagination.ResponseWithData{}, err
 	}
 
+	transactionQueries := make([]transaction.Query, len(transactionSchemas))
+	for i, transactionSchema := range transactionSchemas {
+		transactionQueries[i].Transaction = schema.TransactionSchemaToEntity(transactionSchema)
+		for j, orderSchema := range transactionSchema.Orders {
+			transactionQueries[i].Orders = append(transactionQueries[i].Orders, transaction.OrderQuery{
+				Order: schema.OrderSchemaToEntity(orderSchema),
+			})
+			transactionQueries[i].Orders[j].Menu = schema.MenuSchemaToEntity(*orderSchema.Menu)
+		}
+		transactionQueries[i].Table = schema.TableSchemaToEntity(*transactionSchema.Table)
+	}
+
 	totalPage := pagination.TotalPage(count, int64(req.PerPage))
 
-	data := make([]any, len(transactionSchemas))
-	for i, transactionSchema := range transactionSchemas {
-		data[i] = transactionSchema
+	data := make([]any, len(transactionQueries))
+	for i, transactionQuery := range transactionQueries {
+		data[i] = transactionQuery
 	}
 
 	return pagination.ResponseWithData{
@@ -154,10 +177,10 @@ func (r *transactionRepository) GetAllReadyToServeTransactionList(ctx context.Co
 	}, nil
 }
 
-func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx interface{}, userID string, id string) (interface{}, error) {
+func (r *transactionRepository) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
-		return nil, err
+		return transaction.Query{}, err
 	}
 
 	db := validatedTransaction.DB()
@@ -167,16 +190,26 @@ func (r *transactionRepository) GetTransactionByID(ctx context.Context, tx inter
 
 	var transactionSchema schema.Transaction
 
-	query := db.WithContext(ctx).Where("id = ? AND user_id = ?", id, userID)
+	query := db.WithContext(ctx).Where("id = ?", id)
 
 	if err = query.Preload("Table").
 		Preload("Orders").
 		Preload("Orders.Menu").
 		Take(&transactionSchema).Error; err != nil {
-		return nil, err
+		return transaction.Query{}, err
 	}
 
-	return transactionSchema, nil
+	var transactionQuery transaction.Query
+	transactionQuery.Transaction = schema.TransactionSchemaToEntity(transactionSchema)
+	for i, orderSchema := range transactionSchema.Orders {
+		transactionQuery.Orders = append(transactionQuery.Orders, transaction.OrderQuery{
+			Order: schema.OrderSchemaToEntity(orderSchema),
+		})
+		transactionQuery.Orders[i].Menu = schema.MenuSchemaToEntity(*orderSchema.Menu)
+	}
+	transactionQuery.Table = schema.TableSchemaToEntity(*transactionSchema.Table)
+
+	return transactionQuery, nil
 }
 
 func (r *transactionRepository) GetLatestQueueCode(ctx context.Context, tx interface{}, id string) (string, error) {
@@ -260,10 +293,10 @@ func (r *transactionRepository) GetNextOrder(ctx context.Context, tx interface{}
 	}, nil
 }
 
-func (r *transactionRepository) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
+func (r *transactionRepository) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
 	validatedTransaction, err := validation.ValidateTransaction(tx)
 	if err != nil {
-		return nil, err
+		return transaction.Query{}, err
 	}
 
 	db := validatedTransaction.DB()
@@ -280,10 +313,20 @@ func (r *transactionRepository) GetTransactionByQueueCode(ctx context.Context, t
 		Preload("Orders").
 		Preload("Orders.Menu").
 		First(&transactionSchema).Error; err != nil {
-		return nil, err
+		return transaction.Query{}, err
 	}
 
-	return transactionSchema, nil
+	var transactionQuery transaction.Query
+	transactionQuery.Transaction = schema.TransactionSchemaToEntity(transactionSchema)
+	for i, orderSchema := range transactionSchema.Orders {
+		transactionQuery.Orders = append(transactionQuery.Orders, transaction.OrderQuery{
+			Order: schema.OrderSchemaToEntity(orderSchema),
+		})
+		transactionQuery.Orders[i].Menu = schema.MenuSchemaToEntity(*orderSchema.Menu)
+	}
+	transactionQuery.Table = schema.TableSchemaToEntity(*transactionSchema.Table)
+
+	return transactionQuery, nil
 }
 
 func (r *transactionRepository) UpdateCookedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {

@@ -120,9 +120,8 @@ func (t transactionController) GetAllReadyToServeTransactionList(ctx *gin.Contex
 
 func (t transactionController) GetTransactionByID(ctx *gin.Context) {
 	id := ctx.Param("id")
-	userID := ctx.MustGet("user_id").(string)
 
-	result, err := t.transactionService.GetTransactionByID(ctx.Request.Context(), userID, id)
+	result, err := t.transactionService.GetTransactionByID(ctx.Request.Context(), id)
 	if err != nil {
 		res := presentation.BuildResponseFailed(message.FailedGetTransaction, err.Error(), nil)
 		ctx.AbortWithStatusJSON(http.StatusInternalServerError, res)
