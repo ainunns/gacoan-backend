@@ -2,15 +2,17 @@ package test
 
 import (
 	"context"
+	"fp-kpl/application/request"
 	"fp-kpl/application/response"
 	"fp-kpl/application/service"
+	"fp-kpl/domain/identity"
 	menu_item "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/platform/pagination"
 	"testing"
 	"time"
@@ -73,8 +75,42 @@ func (m *MockTransactionRepositoryForPagination) UpdateTransactionDeliveringStat
 func (m *MockTransactionRepositoryForPagination) UpdateServedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	return transaction.Transaction{}, nil
 }
-func (m *MockTransactionRepositoryForPagination) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForPagination) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	return transaction.Query{}, nil
+}
+
+func (m *MockTransactionRepositoryForPagination) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
+	return transaction.Query{}, nil
+}
+
+// Mock transaction domain service
+type MockTransactionDomainServiceForPagination struct {
+	mock.Mock
+}
+
+func (m *MockTransactionDomainServiceForPagination) GenerateQueueCode(ctx context.Context, transactionID string) (string, error) {
+	args := m.Called(ctx, transactionID)
+	return args.Get(0).(string), args.Error(1)
+}
+
+func (m *MockTransactionDomainServiceForPagination) CalculateMaxCookingTime(orders []transaction.OrderQuery) time.Duration {
+	args := m.Called(orders)
+	return args.Get(0).(time.Duration)
+}
+
+func (m *MockTransactionDomainServiceForPagination) GetOrderDelayStatus(maxCookingTime time.Duration, cookedAt *time.Time, servedAt *time.Time) bool {
+	args := m.Called(maxCookingTime, cookedAt, servedAt)
+	return args.Get(0).(bool)
+}
+
+// Mock order service
+type MockOrderServiceForPagination struct {
+	mock.Mock
+}
+
+func (m *MockOrderServiceForPagination) CalculateTotalPrice(ctx context.Context, orders []request.Order) (shared.Price, error) {
+	args := m.Called(ctx, orders)
+	return args.Get(0).(shared.Price), args.Error(1)
 }
 
 // Minimal mocks for other repositories
@@ -141,7 +177,9 @@ func TestGetAllTransactionsWithPagination_Success(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForPagination)
 	mockOrderRepo := new(MockOrderRepositoryForPagination)
 	mockMenuRepo := new(MockMenuRepositoryForPagination)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForPagination)
 	mockPaymentGateway := new(MockPaymentGatewayPortForPagination)
+	mockOrderService := new(MockOrderServiceForPagination)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -149,61 +187,70 @@ func TestGetAllTransactionsWithPagination_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		nil,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
 	userID := uuid.New().String()
 	tableID := uuid.New()
 	menuID := uuid.New()
-	orderID := uuid.New()
 	transactionID := uuid.New()
 	queueCode := "Q0011"
 
-	menuSchema := &schema.Menu{
-		ID:    menuID,
-		Name:  "Ayam Bakar",
-		Price: decimal.NewFromInt(35000),
-	}
-	orderSchema := schema.Order{
-		ID:       orderID,
-		Menu:     menuSchema,
-		MenuID:   menuID,
-		Quantity: 1,
-	}
-	transactionSchema := schema.Transaction{
-		ID:        transactionID,
-		QueueCode: &queueCode,
-		Table: &schema.Table{
-			ID:          tableID,
+	query := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:        identity.NewIDFromSchema(transactionID),
+			QueueCode: transaction.QueueCode{Code: queueCode, Valid: true},
+			TableID:   identity.NewIDFromSchema(tableID),
+		},
+		Table: table.Table{
+			ID:          identity.NewIDFromSchema(tableID),
 			TableNumber: "A2",
 		},
-		Orders:    []schema.Order{orderSchema},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Orders: []transaction.OrderQuery{
+			{
+				Menu: menu_item.Menu{
+					ID:    identity.NewIDFromSchema(menuID),
+					Name:  "Ayam Bakar",
+					Price: shared.NewPriceFromSchema(decimal.NewFromInt(35000)),
+				},
+				Order: order.Order{
+					MenuID:   identity.NewIDFromSchema(menuID),
+					Quantity: 1,
+				},
+			},
+		},
 	}
 
 	paginated := pagination.ResponseWithData{
-		Data:     []any{transactionSchema},
+		Data:     []any{query},
 		Response: pagination.Response{Page: 1, PerPage: 10, MaxPage: 1, Count: 1},
 	}
 
 	req := pagination.Request{Page: 1, PerPage: 10}
 	mockTransactionRepo.On("GetAllTransactionsWithPagination", ctx, nil, userID, req).Return(paginated, nil)
 
+	// Mock the CalculateMaxCookingTime method that the service calls
+	mockTransactionDomainService.On("CalculateMaxCookingTime", query.Orders).Return(30 * time.Minute)
+
+	// Mock the GetOrderDelayStatus method that the service calls
+	mockTransactionDomainService.On("GetOrderDelayStatus", 30*time.Minute, (*time.Time)(nil), (*time.Time)(nil)).Return(false)
+
 	result, err := transactionService.GetAllTransactionsWithPagination(ctx, userID, req)
 
 	assert.NoError(t, err)
-	assert.Len(t, result.Data, 1)
-	transactionResp, ok := result.Data[0].(response.Transaction)
-	assert.True(t, ok)
-	assert.Equal(t, queueCode, transactionResp.QueueCode)
-	assert.Equal(t, "A2", transactionResp.Table.TableNumber)
-	assert.Len(t, transactionResp.Orders, 1)
-	assert.Equal(t, "Ayam Bakar", transactionResp.Orders[0].Menu.Name)
-	assert.Equal(t, 1, transactionResp.Orders[0].Quantity)
+	if assert.Len(t, result.Data, 1) {
+		transactionResp, ok := result.Data[0].(response.Transaction)
+		assert.True(t, ok)
+		assert.Equal(t, queueCode, transactionResp.QueueCode)
+		assert.Equal(t, "A2", transactionResp.Table.TableNumber)
+		assert.Len(t, transactionResp.Orders, 1)
+		assert.Equal(t, "Ayam Bakar", transactionResp.Orders[0].Menu.Name)
+		assert.Equal(t, 1, transactionResp.Orders[0].Quantity)
+	}
 
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -214,7 +261,9 @@ func TestGetAllTransactionsWithPagination_Empty(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForPagination)
 	mockOrderRepo := new(MockOrderRepositoryForPagination)
 	mockMenuRepo := new(MockMenuRepositoryForPagination)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForPagination)
 	mockPaymentGateway := new(MockPaymentGatewayPortForPagination)
+	mockOrderService := new(MockOrderServiceForPagination)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -222,9 +271,10 @@ func TestGetAllTransactionsWithPagination_Empty(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		nil,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -250,7 +300,9 @@ func TestGetAllTransactionsWithPagination_InvalidType(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForPagination)
 	mockOrderRepo := new(MockOrderRepositoryForPagination)
 	mockMenuRepo := new(MockMenuRepositoryForPagination)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForPagination)
 	mockPaymentGateway := new(MockPaymentGatewayPortForPagination)
+	mockOrderService := new(MockOrderServiceForPagination)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -258,9 +310,10 @@ func TestGetAllTransactionsWithPagination_InvalidType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		nil,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()
@@ -286,7 +339,9 @@ func TestGetAllTransactionsWithPagination_RepoError(t *testing.T) {
 	mockTableRepo := new(MockTableRepositoryForPagination)
 	mockOrderRepo := new(MockOrderRepositoryForPagination)
 	mockMenuRepo := new(MockMenuRepositoryForPagination)
+	mockTransactionDomainService := new(MockTransactionDomainServiceForPagination)
 	mockPaymentGateway := new(MockPaymentGatewayPortForPagination)
+	mockOrderService := new(MockOrderServiceForPagination)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -294,9 +349,10 @@ func TestGetAllTransactionsWithPagination_RepoError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionDomainService,
 		mockPaymentGateway,
 		nil,
-		nil,
+		mockOrderService,
 	)
 
 	ctx := context.Background()

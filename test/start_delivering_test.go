@@ -9,12 +9,13 @@ import (
 	menu_item "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/platform/pagination"
 	"testing"
+	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -27,14 +28,18 @@ type MockTransactionRepositoryForStartDelivering struct {
 	mock.Mock
 }
 
-func (m *MockTransactionRepositoryForStartDelivering) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
+func (m *MockTransactionRepositoryForStartDelivering) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
 	args := m.Called(ctx, tx, queueCode)
-	return args.Get(0), args.Error(1)
+	return args.Get(0).(transaction.Query), args.Error(1)
 }
 
 func (m *MockTransactionRepositoryForStartDelivering) UpdateTransactionDeliveringStatusStart(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	args := m.Called(ctx, tx, transactionID)
 	return args.Get(0).(transaction.Transaction), args.Error(1)
+}
+
+func (m *MockTransactionRepositoryForStartDelivering) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	return transaction.Query{}, nil
 }
 
 // Implement other methods as no-op for interface compliance
@@ -130,6 +135,21 @@ func (m *MockPaymentGatewayPortForStartDelivering) HookPayment(ctx context.Conte
 	return nil
 }
 
+// Mock for transaction.Service
+type MockTransactionServiceForStartDelivering struct{ mock.Mock }
+
+func (m *MockTransactionServiceForStartDelivering) CalculateMaxCookingTime(orders []transaction.OrderQuery) time.Duration {
+	return time.Duration(0)
+}
+
+func (m *MockTransactionServiceForStartDelivering) GetOrderDelayStatus(maxCookingTime time.Duration, cookedAt *time.Time, servedAt *time.Time) bool {
+	return false
+}
+
+func (m *MockTransactionServiceForStartDelivering) GenerateQueueCode(ctx context.Context, transactionID string) (string, error) {
+	return "", nil
+}
+
 func TestStartDelivering_Success(t *testing.T) {
 	// Arrange
 	mockTransactionRepo := new(MockTransactionRepositoryForStartDelivering)
@@ -138,6 +158,7 @@ func TestStartDelivering_Success(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -145,6 +166,7 @@ func TestStartDelivering_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -156,32 +178,35 @@ func TestStartDelivering_Success(t *testing.T) {
 	menuID := uuid.New()
 	orderID := uuid.New()
 
-	// Mock transaction schema with ready_to_serve status
-	menuSchema := &schema.Menu{
-		ID:    menuID,
+	// Mock transaction query with ready_to_serve status
+	menuEntity := menu_item.Menu{
+		ID:    identity.NewIDFromSchema(menuID),
 		Name:  "Nasi Goreng",
-		Price: decimal.NewFromInt(25000),
+		Price: shared.NewPriceFromSchema(decimal.NewFromInt(25000)),
 	}
-	orderSchema := schema.Order{
-		ID:       orderID,
-		Menu:     menuSchema,
-		MenuID:   menuID,
+	orderEntity := order.Order{
+		ID:       identity.NewIDFromSchema(orderID),
+		MenuID:   identity.NewIDFromSchema(menuID),
 		Quantity: 2,
 	}
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusReadyToServe,
-		QueueCode:   &queueCode,
-		Orders:      []schema.Order{orderSchema},
+	orderQuery := transaction.OrderQuery{
+		Order: orderEntity,
+		Menu:  menuEntity,
 	}
-
-	// Mock transaction entity for repository calls
+	orderStatus, _ := transaction.NewOrderStatus(transaction.OrderStatusReadyToServe)
+	queueCodeEntity, _ := transaction.NewQueueCode(queueCode)
 	transactionEntity := transaction.Transaction{
-		ID: identity.NewIDFromSchema(transactionID),
+		ID:          identity.NewIDFromSchema(transactionID),
+		OrderStatus: orderStatus,
+		QueueCode:   queueCodeEntity,
+	}
+	transactionQuery := transaction.Query{
+		Transaction: transactionEntity,
+		Orders:      []transaction.OrderQuery{orderQuery},
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 	mockTransactionRepo.On("UpdateTransactionDeliveringStatusStart", ctx, nil, transactionID.String()).Return(transactionEntity, nil)
 
 	// Act
@@ -207,6 +232,7 @@ func TestStartDelivering_TransactionNotFound(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -214,6 +240,7 @@ func TestStartDelivering_TransactionNotFound(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -223,14 +250,14 @@ func TestStartDelivering_TransactionNotFound(t *testing.T) {
 	queueCode := "Q0001"
 
 	// Set up expectations - transaction not found
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(nil, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transaction.Query{}, assert.AnError)
 
 	// Act
 	req := request.StartDelivering{QueueCode: queueCode}
 	result, err := transactionService.StartDelivering(ctx, req)
 
 	// Assert
-	assert.NoError(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, response.StartDelivering{}, result)
 
 	mockTransactionRepo.AssertExpectations(t)
@@ -244,6 +271,7 @@ func TestStartDelivering_InvalidTransactionType(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -251,6 +279,7 @@ func TestStartDelivering_InvalidTransactionType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -260,7 +289,7 @@ func TestStartDelivering_InvalidTransactionType(t *testing.T) {
 	queueCode := "Q0001"
 
 	// Set up expectations - return invalid type
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return("invalid_type", nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transaction.Query{}, assert.AnError)
 
 	// Act
 	req := request.StartDelivering{QueueCode: queueCode}
@@ -268,7 +297,6 @@ func TestStartDelivering_InvalidTransactionType(t *testing.T) {
 
 	// Assert
 	assert.Error(t, err)
-	assert.Equal(t, transaction.ErrorInvalidTransaction, err)
 	assert.Equal(t, response.StartDelivering{}, result)
 
 	mockTransactionRepo.AssertExpectations(t)
@@ -282,6 +310,7 @@ func TestStartDelivering_InvalidOrderStatus(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -289,6 +318,7 @@ func TestStartDelivering_InvalidOrderStatus(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -298,15 +328,21 @@ func TestStartDelivering_InvalidOrderStatus(t *testing.T) {
 	queueCode := "Q0001"
 	transactionID := uuid.New()
 
-	// Mock transaction schema with wrong status (should be ready_to_serve)
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusPending, // Wrong status
-		QueueCode:   &queueCode,
+	// Mock transaction query with wrong status (should be ready_to_serve)
+	orderStatus, _ := transaction.NewOrderStatus(transaction.OrderStatusPending) // Wrong status
+	queueCodeEntity, _ := transaction.NewQueueCode(queueCode)
+	transactionEntity := transaction.Transaction{
+		ID:          identity.NewIDFromSchema(transactionID),
+		OrderStatus: orderStatus,
+		QueueCode:   queueCodeEntity,
+	}
+	transactionQuery := transaction.Query{
+		Transaction: transactionEntity,
+		Orders:      nil,
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 
 	// Act
 	req := request.StartDelivering{QueueCode: queueCode}
@@ -328,6 +364,7 @@ func TestStartDelivering_GetTransactionError(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -335,6 +372,7 @@ func TestStartDelivering_GetTransactionError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -344,7 +382,7 @@ func TestStartDelivering_GetTransactionError(t *testing.T) {
 	queueCode := "Q0001"
 
 	// Set up expectations - repository error
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(nil, assert.AnError)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transaction.Query{}, assert.AnError)
 
 	// Act
 	req := request.StartDelivering{QueueCode: queueCode}
@@ -365,6 +403,7 @@ func TestStartDelivering_UpdateStatusError(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -372,6 +411,7 @@ func TestStartDelivering_UpdateStatusError(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -383,27 +423,35 @@ func TestStartDelivering_UpdateStatusError(t *testing.T) {
 	menuID := uuid.New()
 	orderID := uuid.New()
 
-	// Mock transaction schema with ready_to_serve status
-	menuSchema := &schema.Menu{
-		ID:    menuID,
+	// Mock transaction query with ready_to_serve status
+	menuEntity := menu_item.Menu{
+		ID:    identity.NewIDFromSchema(menuID),
 		Name:  "Nasi Goreng",
-		Price: decimal.NewFromInt(25000),
+		Price: shared.NewPriceFromSchema(decimal.NewFromInt(25000)),
 	}
-	orderSchema := schema.Order{
-		ID:       orderID,
-		Menu:     menuSchema,
-		MenuID:   menuID,
+	orderEntity := order.Order{
+		ID:       identity.NewIDFromSchema(orderID),
+		MenuID:   identity.NewIDFromSchema(menuID),
 		Quantity: 2,
 	}
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusReadyToServe,
-		QueueCode:   &queueCode,
-		Orders:      []schema.Order{orderSchema},
+	orderQuery := transaction.OrderQuery{
+		Order: orderEntity,
+		Menu:  menuEntity,
+	}
+	orderStatus, _ := transaction.NewOrderStatus(transaction.OrderStatusReadyToServe)
+	queueCodeEntity, _ := transaction.NewQueueCode(queueCode)
+	transactionEntity := transaction.Transaction{
+		ID:          identity.NewIDFromSchema(transactionID),
+		OrderStatus: orderStatus,
+		QueueCode:   queueCodeEntity,
+	}
+	transactionQuery := transaction.Query{
+		Transaction: transactionEntity,
+		Orders:      []transaction.OrderQuery{orderQuery},
 	}
 
 	// Set up expectations - update status fails
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 	mockTransactionRepo.On("UpdateTransactionDeliveringStatusStart", ctx, nil, transactionID.String()).Return(transaction.Transaction{}, assert.AnError)
 
 	// Act
@@ -425,6 +473,7 @@ func TestStartDelivering_WithMultipleOrders(t *testing.T) {
 	mockOrderRepo := new(MockOrderRepositoryForStartDelivering)
 	mockMenuRepo := new(MockMenuRepositoryForStartDelivering)
 	mockPaymentGateway := new(MockPaymentGatewayPortForStartDelivering)
+	mockTransactionService := new(MockTransactionServiceForStartDelivering)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -432,6 +481,7 @@ func TestStartDelivering_WithMultipleOrders(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		mockTransactionService,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -445,43 +495,49 @@ func TestStartDelivering_WithMultipleOrders(t *testing.T) {
 	orderID1 := uuid.New()
 	orderID2 := uuid.New()
 
-	// Mock transaction schema with multiple orders
-	menuSchema1 := &schema.Menu{
-		ID:    menuID1,
+	// Mock transaction query with multiple orders
+	menuEntity1 := menu_item.Menu{
+		ID:    identity.NewIDFromSchema(menuID1),
 		Name:  "Nasi Goreng",
-		Price: decimal.NewFromInt(25000),
+		Price: shared.NewPriceFromSchema(decimal.NewFromInt(25000)),
 	}
-	menuSchema2 := &schema.Menu{
-		ID:    menuID2,
+	menuEntity2 := menu_item.Menu{
+		ID:    identity.NewIDFromSchema(menuID2),
 		Name:  "Es Teh",
-		Price: decimal.NewFromInt(5000),
+		Price: shared.NewPriceFromSchema(decimal.NewFromInt(5000)),
 	}
-	orderSchema1 := schema.Order{
-		ID:       orderID1,
-		Menu:     menuSchema1,
-		MenuID:   menuID1,
+	orderEntity1 := order.Order{
+		ID:       identity.NewIDFromSchema(orderID1),
+		MenuID:   identity.NewIDFromSchema(menuID1),
 		Quantity: 2,
 	}
-	orderSchema2 := schema.Order{
-		ID:       orderID2,
-		Menu:     menuSchema2,
-		MenuID:   menuID2,
+	orderEntity2 := order.Order{
+		ID:       identity.NewIDFromSchema(orderID2),
+		MenuID:   identity.NewIDFromSchema(menuID2),
 		Quantity: 1,
 	}
-	transactionSchema := schema.Transaction{
-		ID:          transactionID,
-		OrderStatus: transaction.OrderStatusReadyToServe,
-		QueueCode:   &queueCode,
-		Orders:      []schema.Order{orderSchema1, orderSchema2},
+	orderQuery1 := transaction.OrderQuery{
+		Order: orderEntity1,
+		Menu:  menuEntity1,
 	}
-
-	// Mock transaction entity for repository calls
+	orderQuery2 := transaction.OrderQuery{
+		Order: orderEntity2,
+		Menu:  menuEntity2,
+	}
+	orderStatus, _ := transaction.NewOrderStatus(transaction.OrderStatusReadyToServe)
+	queueCodeEntity, _ := transaction.NewQueueCode(queueCode)
 	transactionEntity := transaction.Transaction{
-		ID: identity.NewIDFromSchema(transactionID),
+		ID:          identity.NewIDFromSchema(transactionID),
+		OrderStatus: orderStatus,
+		QueueCode:   queueCodeEntity,
+	}
+	transactionQuery := transaction.Query{
+		Transaction: transactionEntity,
+		Orders:      []transaction.OrderQuery{orderQuery1, orderQuery2},
 	}
 
 	// Set up expectations
-	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionSchema, nil)
+	mockTransactionRepo.On("GetTransactionByQueueCode", ctx, nil, queueCode).Return(transactionQuery, nil)
 	mockTransactionRepo.On("UpdateTransactionDeliveringStatusStart", ctx, nil, transactionID.String()).Return(transactionEntity, nil)
 
 	// Act

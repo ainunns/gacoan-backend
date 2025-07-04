@@ -8,6 +8,7 @@ import (
 	menu_item "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
@@ -61,8 +62,12 @@ func (m *MockTransactionRepositoryForCreateTransaction) UpdateTransactionDeliver
 func (m *MockTransactionRepositoryForCreateTransaction) UpdateServedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	return transaction.Transaction{}, nil
 }
-func (m *MockTransactionRepositoryForCreateTransaction) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForCreateTransaction) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
+	return transaction.Query{}, nil
+}
+
+func (m *MockTransactionRepositoryForCreateTransaction) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	return transaction.Query{}, nil
 }
 
 type MockTransactionInterfaceForCreateTransaction struct {
@@ -143,6 +148,13 @@ func (m *MockPaymentGatewayPortForCreateTransaction) HookPayment(ctx context.Con
 	return args.Error(0)
 }
 
+type MockOrderServiceForCreateTransaction struct{ mock.Mock }
+
+func (m *MockOrderServiceForCreateTransaction) CalculateTotalPrice(ctx context.Context, orders []request.Order) (shared.Price, error) {
+	args := m.Called(ctx, orders)
+	return args.Get(0).(shared.Price), args.Error(1)
+}
+
 // Example test using mocks
 func TestCreateTransaction_Success(t *testing.T) {
 	mockTransactionRepo := new(MockTransactionRepositoryForCreateTransaction)
@@ -152,6 +164,7 @@ func TestCreateTransaction_Success(t *testing.T) {
 	mockMenuRepo := new(MockMenuRepositoryForCreateTransaction)
 	mockPaymentGateway := new(MockPaymentGatewayPortForCreateTransaction)
 	mockTransactionInterface := new(MockTransactionInterfaceForCreateTransaction)
+	mockOrderService := new(MockOrderServiceForCreateTransaction)
 
 	transactionService := service.NewTransactionService(
 		mockTransactionRepo,
@@ -159,9 +172,10 @@ func TestCreateTransaction_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil, // transaction.Service - using nil for now
 		mockPaymentGateway,
 		mockTransactionInterface,
-		nil,
+		mockOrderService,
 	)
 
 	userID := uuid.New()

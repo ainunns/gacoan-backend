@@ -4,16 +4,16 @@ import (
 	"context"
 	"fp-kpl/application/response"
 	"fp-kpl/application/service"
+	"fp-kpl/domain/identity"
 	menu_item "fp-kpl/domain/menu/menu_item"
 	"fp-kpl/domain/order"
 	"fp-kpl/domain/port"
+	"fp-kpl/domain/shared"
 	"fp-kpl/domain/table"
 	"fp-kpl/domain/transaction"
 	"fp-kpl/domain/user"
-	"fp-kpl/infrastructure/database/schema"
 	"fp-kpl/platform/pagination"
 	"testing"
-	"time"
 
 	"github.com/google/uuid"
 	"github.com/shopspring/decimal"
@@ -64,8 +64,11 @@ func (m *MockTransactionRepositoryForReadyToServe) UpdateTransactionDeliveringSt
 func (m *MockTransactionRepositoryForReadyToServe) UpdateServedAt(ctx context.Context, tx interface{}, transactionID string) (transaction.Transaction, error) {
 	return transaction.Transaction{}, nil
 }
-func (m *MockTransactionRepositoryForReadyToServe) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (interface{}, error) {
-	return nil, nil
+func (m *MockTransactionRepositoryForReadyToServe) GetTransactionByQueueCode(ctx context.Context, tx interface{}, queueCode string) (transaction.Query, error) {
+	return transaction.Query{}, nil
+}
+func (m *MockTransactionRepositoryForReadyToServe) GetDetailedTransactionByID(ctx context.Context, tx interface{}, id string) (transaction.Query, error) {
+	return transaction.Query{}, nil
 }
 
 // Minimal mocks for other repositories
@@ -140,6 +143,7 @@ func TestGetAllReadyToServeTransactionList_Success(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -148,35 +152,36 @@ func TestGetAllReadyToServeTransactionList_Success(t *testing.T) {
 	ctx := context.Background()
 	tableID := uuid.New()
 	menuID := uuid.New()
-	orderID := uuid.New()
 	transactionID := uuid.New()
 	queueCode := "Q0010"
 
-	menuSchema := &schema.Menu{
-		ID:    menuID,
-		Name:  "Sate Ayam",
-		Price: decimal.NewFromInt(30000),
-	}
-	orderSchema := schema.Order{
-		ID:       orderID,
-		Menu:     menuSchema,
-		MenuID:   menuID,
-		Quantity: 3,
-	}
-	transactionSchema := schema.Transaction{
-		ID:        transactionID,
-		QueueCode: &queueCode,
-		Table: &schema.Table{
-			ID:          tableID,
+	query := transaction.Query{
+		Transaction: transaction.Transaction{
+			ID:        identity.NewIDFromSchema(transactionID),
+			QueueCode: transaction.QueueCode{Code: queueCode, Valid: true},
+			TableID:   identity.NewIDFromSchema(tableID),
+		},
+		Table: table.Table{
+			ID:          identity.NewIDFromSchema(tableID),
 			TableNumber: "A1",
 		},
-		Orders:    []schema.Order{orderSchema},
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		Orders: []transaction.OrderQuery{
+			{
+				Menu: menu_item.Menu{
+					ID:    identity.NewIDFromSchema(menuID),
+					Name:  "Sate Ayam",
+					Price: shared.NewPriceFromSchema(decimal.NewFromInt(30000)),
+				},
+				Order: order.Order{
+					MenuID:   identity.NewIDFromSchema(menuID),
+					Quantity: 3,
+				},
+			},
+		},
 	}
 
 	paginated := pagination.ResponseWithData{
-		Data:     []any{transactionSchema},
+		Data:     []any{query},
 		Response: pagination.Response{Page: 1, PerPage: 10, MaxPage: 1, Count: 1},
 	}
 
@@ -186,14 +191,15 @@ func TestGetAllReadyToServeTransactionList_Success(t *testing.T) {
 	result, err := transactionService.GetAllReadyToServeTransactionList(ctx, req)
 
 	assert.NoError(t, err)
-	assert.Len(t, result.Data, 1)
-	transactionResp, ok := result.Data[0].(response.TransactionForWaiter)
-	assert.True(t, ok)
-	assert.Equal(t, queueCode, transactionResp.QueueCode)
-	assert.Equal(t, "A1", transactionResp.Table.TableNumber)
-	assert.Len(t, transactionResp.Orders, 1)
-	assert.Equal(t, "Sate Ayam", transactionResp.Orders[0].Menu.Name)
-	assert.Equal(t, 3, transactionResp.Orders[0].Quantity)
+	if assert.Len(t, result.Data, 1) {
+		transactionResp, ok := result.Data[0].(response.TransactionForWaiter)
+		assert.True(t, ok)
+		assert.Equal(t, queueCode, transactionResp.QueueCode)
+		assert.Equal(t, "A1", transactionResp.Table.TableNumber)
+		assert.Len(t, transactionResp.Orders, 1)
+		assert.Equal(t, "Sate Ayam", transactionResp.Orders[0].Menu.Name)
+		assert.Equal(t, 3, transactionResp.Orders[0].Quantity)
+	}
 
 	mockTransactionRepo.AssertExpectations(t)
 }
@@ -212,6 +218,7 @@ func TestGetAllReadyToServeTransactionList_Empty(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,
@@ -247,6 +254,7 @@ func TestGetAllReadyToServeTransactionList_InvalidType(t *testing.T) {
 		mockTableRepo,
 		mockOrderRepo,
 		mockMenuRepo,
+		nil,
 		mockPaymentGateway,
 		nil,
 		nil,

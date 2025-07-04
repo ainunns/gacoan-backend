@@ -35,6 +35,16 @@ type MockMenuRepositoryForCalculatePrice struct {
 	mock.Mock
 }
 
+// Mock order domain service
+type MockOrderDomainService struct {
+	mock.Mock
+}
+
+func (m *MockOrderDomainService) CalculatePrice(ctx context.Context, price shared.Price, quantity int64) (shared.Price, error) {
+	args := m.Called(ctx, price, quantity)
+	return args.Get(0).(shared.Price), args.Error(1)
+}
+
 func (m *MockMenuRepositoryForCalculatePrice) GetAllMenus(ctx context.Context, tx interface{}) ([]menu.Menu, error) {
 	args := m.Called(ctx, tx)
 	return args.Get(0).([]menu.Menu), args.Error(1)
@@ -59,8 +69,9 @@ func TestCalculateTotalPrice_Success(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -90,6 +101,10 @@ func TestCalculateTotalPrice_Success(t *testing.T) {
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID1).Return(menu1, nil)
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID2).Return(menu2, nil)
 
+	// Mock order domain service expectations
+	mockOrderDomainService.On("CalculatePrice", ctx, menu1.Price, int64(2)).Return(shared.Price{Price: decimal.NewFromInt(50000)}, nil)
+	mockOrderDomainService.On("CalculatePrice", ctx, menu2.Price, int64(1)).Return(shared.Price{Price: decimal.NewFromInt(15000)}, nil)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -108,8 +123,9 @@ func TestCalculateTotalPrice_SingleItem(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -126,6 +142,9 @@ func TestCalculateTotalPrice_SingleItem(t *testing.T) {
 
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID).Return(menu, nil)
 
+	// Mock order domain service expectation
+	mockOrderDomainService.On("CalculatePrice", ctx, menu.Price, int64(3)).Return(shared.Price{Price: decimal.NewFromInt(90000)}, nil)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -137,14 +156,16 @@ func TestCalculateTotalPrice_SingleItem(t *testing.T) {
 	assert.True(t, result.Price.Equal(expectedPrice), "Expected price %s, got %s", expectedPrice, result.Price)
 
 	mockMenuRepo.AssertExpectations(t)
+	mockOrderDomainService.AssertExpectations(t)
 }
 
 func TestCalculateTotalPrice_ZeroQuantity(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -162,6 +183,9 @@ func TestCalculateTotalPrice_ZeroQuantity(t *testing.T) {
 
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID).Return(menu, nil)
 
+	// Mock order domain service expectation for invalid quantity
+	mockOrderDomainService.On("CalculatePrice", ctx, menu.Price, int64(0)).Return(shared.Price{}, order.ErrorInvalidQuantity)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -171,14 +195,16 @@ func TestCalculateTotalPrice_ZeroQuantity(t *testing.T) {
 	assert.Equal(t, shared.Price{}, result)
 
 	mockMenuRepo.AssertExpectations(t)
+	mockOrderDomainService.AssertExpectations(t)
 }
 
 func TestCalculateTotalPrice_NegativeQuantity(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -196,6 +222,9 @@ func TestCalculateTotalPrice_NegativeQuantity(t *testing.T) {
 
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID).Return(menu, nil)
 
+	// Mock order domain service expectation for invalid quantity
+	mockOrderDomainService.On("CalculatePrice", ctx, menu.Price, int64(-1)).Return(shared.Price{}, order.ErrorInvalidQuantity)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -205,14 +234,16 @@ func TestCalculateTotalPrice_NegativeQuantity(t *testing.T) {
 	assert.Equal(t, shared.Price{}, result)
 
 	mockMenuRepo.AssertExpectations(t)
+	mockOrderDomainService.AssertExpectations(t)
 }
 
 func TestCalculateTotalPrice_MenuNotFound(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -232,14 +263,16 @@ func TestCalculateTotalPrice_MenuNotFound(t *testing.T) {
 	assert.Equal(t, shared.Price{}, result)
 
 	mockMenuRepo.AssertExpectations(t)
+	mockOrderDomainService.AssertNotCalled(t, "CalculatePrice")
 }
 
 func TestCalculateTotalPrice_EmptyOrders(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -256,14 +289,16 @@ func TestCalculateTotalPrice_EmptyOrders(t *testing.T) {
 	assert.True(t, result.Price.Equal(expectedPrice), "Expected price %s, got %s", expectedPrice, result.Price)
 
 	mockMenuRepo.AssertNotCalled(t, "GetMenuByID")
+	mockOrderDomainService.AssertNotCalled(t, "CalculatePrice")
 }
 
 func TestCalculateTotalPrice_DecimalPrices(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -291,6 +326,10 @@ func TestCalculateTotalPrice_DecimalPrices(t *testing.T) {
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID1).Return(menu1, nil)
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID2).Return(menu2, nil)
 
+	// Mock order domain service expectations
+	mockOrderDomainService.On("CalculatePrice", ctx, menu1.Price, int64(2)).Return(shared.Price{Price: decimal.NewFromFloat(25001.00)}, nil)
+	mockOrderDomainService.On("CalculatePrice", ctx, menu2.Price, int64(1)).Return(shared.Price{Price: decimal.NewFromFloat(8750.25)}, nil)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -303,14 +342,16 @@ func TestCalculateTotalPrice_DecimalPrices(t *testing.T) {
 	assert.True(t, result.Price.Equal(expectedPrice), "Expected price %s, got %s", expectedPrice, result.Price)
 
 	mockMenuRepo.AssertExpectations(t)
+	mockOrderDomainService.AssertExpectations(t)
 }
 
 func TestCalculateTotalPrice_LargeQuantities(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -327,6 +368,9 @@ func TestCalculateTotalPrice_LargeQuantities(t *testing.T) {
 
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID).Return(menu, nil)
 
+	// Mock order domain service expectation
+	mockOrderDomainService.On("CalculatePrice", ctx, menu.Price, int64(100)).Return(shared.Price{Price: decimal.NewFromInt(100000)}, nil)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -338,14 +382,16 @@ func TestCalculateTotalPrice_LargeQuantities(t *testing.T) {
 	assert.True(t, result.Price.Equal(expectedPrice), "Expected price %s, got %s", expectedPrice, result.Price)
 
 	mockMenuRepo.AssertExpectations(t)
+	mockOrderDomainService.AssertExpectations(t)
 }
 
 func TestCalculateTotalPrice_MixedValidAndInvalid(t *testing.T) {
 	// Arrange
 	mockMenuRepo := new(MockMenuRepositoryForCalculatePrice)
 	mockOrderRepo := new(MockOrderRepositoryForCalculatePrice)
+	mockOrderDomainService := new(MockOrderDomainService)
 
-	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo)
+	orderService := service.NewOrderService(mockOrderRepo, mockMenuRepo, mockOrderDomainService)
 
 	ctx := context.Background()
 
@@ -372,6 +418,10 @@ func TestCalculateTotalPrice_MixedValidAndInvalid(t *testing.T) {
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID1).Return(menu1, nil)
 	mockMenuRepo.On("GetMenuByID", ctx, nil, menuID2).Return(menu2, nil)
 
+	// Mock order domain service expectations
+	mockOrderDomainService.On("CalculatePrice", ctx, menu1.Price, int64(2)).Return(shared.Price{Price: decimal.NewFromInt(20000)}, nil)
+	mockOrderDomainService.On("CalculatePrice", ctx, menu2.Price, int64(0)).Return(shared.Price{}, order.ErrorInvalidQuantity)
+
 	// Act
 	result, err := orderService.CalculateTotalPrice(ctx, orders)
 
@@ -382,4 +432,5 @@ func TestCalculateTotalPrice_MixedValidAndInvalid(t *testing.T) {
 
 	// Both GetMenuByID calls should be made since quantity check happens after
 	mockMenuRepo.AssertNumberOfCalls(t, "GetMenuByID", 2)
+	mockOrderDomainService.AssertNumberOfCalls(t, "CalculatePrice", 2)
 }
