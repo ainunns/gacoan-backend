@@ -11,6 +11,7 @@ type (
 	Service interface {
 		GenerateQueueCode(ctx context.Context, transactionID string) (string, error)
 		CalculateMaxCookingTime(orders []OrderQuery) time.Duration
+		GetOrderDelayStatus(maxCookingTime time.Duration, cookedAt *time.Time, servedAt *time.Time) bool
 	}
 
 	service struct {
@@ -43,4 +44,19 @@ func (s *service) CalculateMaxCookingTime(orders []OrderQuery) time.Duration {
 	}
 
 	return maxCookingTime
+}
+
+func (s *service) GetOrderDelayStatus(maxCookingTime time.Duration, cookedAt *time.Time, servedAt *time.Time) bool {
+	now := time.Now()
+	isDelayed := false
+	if cookedAt != nil {
+		expectedFinishTime := cookedAt.Add(maxCookingTime)
+		if servedAt != nil {
+			isDelayed = servedAt.After(expectedFinishTime)
+		} else {
+			isDelayed = now.After(expectedFinishTime)
+		}
+	}
+
+	return isDelayed
 }
